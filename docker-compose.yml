@@ -1,0 +1,7 @@
+services:
+  webapp:
+    build:
+      context: ./webapp
+    ports:
+      - "8080:80"
+    restart: unless-stopped

@@ -34,6 +34,8 @@ UART `0x59`, the ceiling `lsls #5`, the PAS pointer, the PAS==6 compare, init by
 
 ## Use
 
+On Windows, from the repo root, double-click [`../start-webapp.bat`](../start-webapp.bat) or run [`../start-webapp.ps1`](../start-webapp.ps1) (needs [Node.js LTS](https://nodejs.org)).
+
 ```bash
 cd webapp
 npm install
@@ -52,3 +54,5 @@ python3 -m tools.jlink_flasher flash patched.hex
 ```
 
 Close J-Flash / JLinkExe before WebUSB. Windows often cannot claim the interface while the SEGGER driver owns it — use the CLI. VTref sense only unless you tick probe power; never power from battery and J-Link together. Raising the cap can make the bike illegal on public roads; that is your responsibility.
+
+To serve the built site on a homelab, see **Self-host** in [`../README.md`](../README.md) (`docker compose up -d --build`, port 8080). WebUSB flash from a remote host needs HTTPS.
