@@ -11,6 +11,11 @@
 node_modules/
 dist/
 
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
 # OS / editor
 .DS_Store
 *.swp
