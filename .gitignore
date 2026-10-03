@@ -15,6 +15,7 @@ dist/
 __pycache__/
 *.py[cod]
 *.egg-info/
+.venv/
 
 # OS / editor
 .DS_Store

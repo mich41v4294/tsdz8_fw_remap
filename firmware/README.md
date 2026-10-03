@@ -30,8 +30,9 @@ The patcher also refuses to write if mapped stock bytes (UART `0x59`, 25 km/h ce
 64 KB at `0x10001000`. Do not reflash the J-Link.
 
 ```bash
-python3 -m pip install -r tools/jlink_flasher/requirements.txt
-python3 -m tools.jlink_flasher flash path/to-patched.hex
+./jlink-flash.sh flash path/to-patched.hex
 ```
 
-Or Connect / Flash in the webapp (desktop Chrome/Edge WebUSB). Close other J-Link apps first. Battery off, or do not supply 5 V on VTref. Details in [`../tools/jlink_flasher/README.md`](../tools/jlink_flasher/README.md).
+Windows: double-click [`../jlink-flash.bat`](../jlink-flash.bat) (menu) or `jlink-flash.bat flash path\to-patched.hex`. PowerShell: [`../jlink-flash.ps1`](../jlink-flash.ps1).
+
+Experimental WebUSB in the patcher is off unless you open it with `?webusb=1`. Details in [`../tools/jlink_flasher/README.md`](../tools/jlink_flasher/README.md).

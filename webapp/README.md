@@ -1,6 +1,6 @@
 # TSDZ8 stock parameter patcher
 
-Browser editor for the Tongsheng TSDZ8 stock HEX. It patches documented immediates after a Ghidra pass over the ride loop, UART parser, assist mapper, PAS cadence, and FOC/stall path. Desktop Chrome/Edge can flash the patched image over **WebUSB** to a J-Link in **stock firmware** (native J-Link USB, not a probe reflash). If the OS driver keeps the device, use [`../tools/jlink_flasher/`](../tools/jlink_flasher/).
+Browser editor for the Tongsheng TSDZ8 stock HEX. It patches documented immediates after a Ghidra pass over the ride loop, UART parser, assist mapper, PAS cadence, and FOC/stall path. Flash with the pylink CLI ([`../tools/jlink_flasher/`](../tools/jlink_flasher/)). Experimental **WebUSB** (desktop Chrome/Edge, stock J-Link firmware) is off unless you open the page with `?webusb=1`.
 
 Rider settings and advanced firmware tunables are separate in the UI. Advanced is collapsed by default.
 
@@ -47,12 +47,14 @@ npm run dev
 
 Load your Tongsheng stock HEX (local dumps are often named `original firmware thonghsheng.hex`; see [`../firmware/README.md`](../firmware/README.md)). Download is refused if known stock bytes do not match.
 
-**Flash:** Connect a J-Link (SEGGER `0x1366`) in the page, or:
+**Flash:** from the repo root, use the pylink CLI (default):
 
 ```bash
-python3 -m tools.jlink_flasher flash patched.hex
+./jlink-flash.sh flash patched.hex
 ```
 
-Close J-Flash / JLinkExe before WebUSB. Windows often cannot claim the interface while the SEGGER driver owns it — use the CLI. VTref sense only unless you tick probe power; never power from battery and J-Link together. Raising the cap can make the bike illegal on public roads; that is your responsibility.
+Windows: [`../jlink-flash.bat`](../jlink-flash.bat) / [`../jlink-flash.ps1`](../jlink-flash.ps1) (menu if no args). Needs [Python 3](https://www.python.org) and [SEGGER J-Link Software](https://www.segger.com/downloads/jlink/).
 
-To serve the built site on a homelab, see **Self-host** in [`../README.md`](../README.md) (`docker compose up -d --build`, port 8080). WebUSB flash from a remote host needs HTTPS.
+Experimental WebUSB in the page is off unless you open `?webusb=1`. Close J-Flash / JLinkExe first. VTref sense only unless you tick probe power; never power from battery and J-Link together. Raising the cap can make the bike illegal on public roads; that is your responsibility.
+
+To serve the built site on a homelab, see **Self-host** in [`../README.md`](../README.md) (`docker compose up -d --build`, port 8080).

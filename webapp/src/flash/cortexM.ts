@@ -10,17 +10,27 @@ import {
   DHCSR_DBGKEY,
   DHCSR_S_HALT,
   DHCSR_S_REGRDY,
+  SRAM_CODE,
 } from "./constants";
 import { SwdError, SwdHost } from "./swd";
 
 const CSW = 0x00;
-const TAR = 0x04;
+export const MEMAP_TAR = 0x04;
+const TAR = MEMAP_TAR;
 const DRW = 0x0c;
 const SELECT = 0x08;
 
+/** AHB-AP AddrInc wraps TAR[9:0]; rewrite TAR at this stride. */
+export const MEMAP_TAR_WRAP = 0x400;
+
+/** 32-bit, AddrInc single, DeviceEn, MasterType */
 const CSW_32 = 0xa2000012;
 const CSW_16 = 0xa2000011;
 const CSW_8 = 0xa2000010;
+
+const REG_PC = 15;
+const REG_XPSR = 16;
+const XPSR_THUMB = 0x01000000;
 
 export interface MemIf {
   read32(addr: number): Promise<number>;
@@ -30,6 +40,8 @@ export interface MemIf {
   read8(addr: number): Promise<number>;
   write8(addr: number, value: number): Promise<void>;
 }
+
+export type DumpProgressFn = (done: number, total: number) => void;
 
 export class CortexM implements MemIf {
   private select = 0xffffffff;
@@ -114,21 +126,43 @@ export class CortexM implements MemIf {
     throw new SwdError("DCRSR write timeout");
   }
 
-  async readMem(addr: number, length: number): Promise<Uint8Array> {
+  async readReg(reg: number): Promise<number> {
+    await this.write32(DCRSR, reg & 0x1f);
+    for (let i = 0; i < 20; i++) {
+      if ((await this.read32(DHCSR)) & DHCSR_S_REGRDY) {
+        return this.read32(DCRDR);
+      }
+    }
+    throw new SwdError("DCRSR read timeout");
+  }
+
+  async readMem(addr: number, length: number, onProgress?: DumpProgressFn): Promise<Uint8Array> {
     const out = new Uint8Array(length);
     let i = 0;
-    while (i + 4 <= length) {
-      const w = await this.read32(addr + i);
-      out[i] = w & 0xff;
-      out[i + 1] = (w >> 8) & 0xff;
-      out[i + 2] = (w >> 16) & 0xff;
-      out[i + 3] = (w >> 24) & 0xff;
-      i += 4;
+    const words = length & ~3;
+    if (words >= 4) {
+      await this.setCsw(CSW_32);
+      let tarValid = false;
+      while (i + 4 <= words) {
+        const abs = (addr + i) >>> 0;
+        if (!tarValid || (abs & (MEMAP_TAR_WRAP - 1)) === 0) {
+          await this.swd.writeAp(TAR, abs);
+          tarValid = true;
+        }
+        const w = await this.swd.readAp(DRW);
+        out[i] = w & 0xff;
+        out[i + 1] = (w >> 8) & 0xff;
+        out[i + 2] = (w >> 16) & 0xff;
+        out[i + 3] = (w >> 24) & 0xff;
+        i += 4;
+        if (onProgress && (i === words || (i & 0x3ff) === 0)) onProgress(i, length);
+      }
     }
     while (i < length) {
       out[i] = await this.read8(addr + i);
       i++;
     }
+    onProgress?.(length, length);
     return out;
   }
 
@@ -144,4 +178,38 @@ export class CortexM implements MemIf {
       i++;
     }
   }
+
+  /**
+   * Load Thumb at SRAM_CODE, set r0–r3 and PC, run until BKPT halt.
+   */
+  async runFromSram(
+    code: Uint8Array,
+    args: { r0: number; r1: number; r2: number; r3: number },
+    timeoutMs = 4000,
+  ): Promise<{ pc: number; r0: number }> {
+    await this.halt();
+    await this.writeMem(SRAM_CODE, code);
+    await this.writeReg(0, args.r0 >>> 0);
+    await this.writeReg(1, args.r1 >>> 0);
+    await this.writeReg(2, args.r2 >>> 0);
+    await this.writeReg(3, args.r3 >>> 0);
+    await this.writeReg(REG_XPSR, XPSR_THUMB);
+    await this.writeReg(14, (SRAM_CODE + code.length) | 1);
+    await this.writeReg(REG_PC, SRAM_CODE | 1);
+    await this.go();
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const s = await this.read32(DHCSR);
+      if (s & DHCSR_S_HALT) {
+        const pc = (await this.readReg(REG_PC)) & ~1;
+        const r0 = await this.readReg(0);
+        return { pc, r0 };
+      }
+    }
+    throw new SwdError("SRAM helper did not halt (BKPT timeout)");
+  }
+}
+
+export function isSramHost(mem: MemIf): mem is CortexM {
+  return mem instanceof CortexM;
 }

@@ -1,4 +1,4 @@
-import { bitsToInt, intToBits, packBits, parity32, unpackBits } from "./bits";
+import { bitsToInt, intToBits, packBits, parity32, u32and, unpackBits } from "./bits";
 import { JLinkError } from "./jlinkUsb";
 
 export interface SwdIo {
@@ -9,11 +9,19 @@ const ACK_OK = 0b001;
 const ACK_WAIT = 0b010;
 const ACK_FAULT = 0b100;
 
+const CTRLSTAT_CDBGPWRUPACK = 0x20000000;
+const CTRLSTAT_CSYSPWRUPACK = 0x80000000;
+const CTRLSTAT_POWERED = (CTRLSTAT_CDBGPWRUPACK | CTRLSTAT_CSYSPWRUPACK) >>> 0;
+
 export class SwdError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "SwdError";
   }
+}
+
+export function ctrlStatPowered(stat: number): boolean {
+  return u32and(stat, CTRLSTAT_POWERED) === CTRLSTAT_POWERED;
 }
 
 function requestByte(ap: boolean, read: boolean, a23: number): number {
@@ -26,6 +34,8 @@ function requestByte(ap: boolean, read: boolean, a23: number): number {
 }
 
 export class SwdHost {
+  private clearingFault = false;
+
   constructor(private readonly io: SwdIo) {}
 
   private async transfer(dir: boolean[], data: boolean[]): Promise<boolean[]> {
@@ -46,7 +56,10 @@ export class SwdHost {
 
   async idle(n = 8): Promise<void> {
     const bits = Array(n).fill(false) as boolean[];
-    await this.transfer(bits.map(() => true), bits);
+    await this.transfer(
+      bits.map(() => true),
+      bits,
+    );
   }
 
   private async rawTxn(ap: boolean, read: boolean, a23: number, wdata?: number): Promise<number> {
@@ -86,7 +99,19 @@ export class SwdHost {
         await this.idle();
         continue;
       }
-      if (ack === ACK_FAULT) throw new SwdError("SWD FAULT");
+      if (ack === ACK_FAULT) {
+        if (!this.clearingFault) {
+          this.clearingFault = true;
+          try {
+            await this.writeDp(0x00, 0x1e);
+          } catch {
+            /* still throw FAULT */
+          } finally {
+            this.clearingFault = false;
+          }
+        }
+        throw new SwdError("SWD FAULT");
+      }
       if (ack !== ACK_OK) throw new SwdError(`SWD ACK 0b${ack.toString(2)}`);
       if (!read) {
         await this.idle();
@@ -129,10 +154,10 @@ export class SwdHost {
     await this.writeDp(0x04, 0x50000000); // CTRL/STAT CSYSPWRUPREQ | CDBGPWRUPREQ
     for (let i = 0; i < 20; i++) {
       const stat = await this.readDp(0x04);
-      if ((stat & 0xa0000000) === 0xa0000000) return idcode;
+      if (ctrlStatPowered(stat)) return idcode;
     }
     throw new SwdError("Debug power-up failed");
   }
 }
 
-export { requestByte };
+export { requestByte, JLinkError };

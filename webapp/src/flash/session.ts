@@ -1,4 +1,5 @@
 import {
+  CAP_SET_KS_POWER,
   DEFAULT_SWD_KHZ,
   FLASH_BASE,
   IDCHIP_ADDR,
@@ -7,7 +8,7 @@ import {
   idchipField,
 } from "./constants";
 import { CortexM } from "./cortexM";
-import { JLinkError, JLinkUsb, openWebJlink } from "./jlinkUsb";
+import { hasCap, JLinkError, JLinkUsb, openWebJlink } from "./jlinkUsb";
 import { SwdHost } from "./swd";
 import { flashXmc1 } from "./xmc1";
 
@@ -25,6 +26,7 @@ export class FlashSession {
   vtrefMv = 0;
   firmware = "";
   product = "";
+  vtrefWarn = "";
 
   constructor(
     readonly jlink: JLinkUsb,
@@ -43,18 +45,17 @@ export class FlashSession {
       await jlink.hello();
       await jlink.selectSwd();
       await jlink.setSpeedKhz(opts.speedKhz ?? DEFAULT_SWD_KHZ);
-      try {
+      if (hasCap(jlink.caps, CAP_SET_KS_POWER)) {
         await jlink.setKickstartPower(Boolean(opts.power));
-      } catch {
-        if (opts.power) throw new FlashSessionError("This J-Link cannot switch target power");
+      } else if (opts.power) {
+        throw new FlashSessionError("This J-Link cannot switch target power");
       }
-      let vtrefMv = 0;
-      try {
-        vtrefMv = await jlink.readVtrefMv();
-      } catch {
-        vtrefMv = 0;
-      }
-      if (!opts.power && vtrefMv < 1500) {
+      const vtrefMv = await jlink.readVtrefMv();
+      let vtrefWarn = "";
+      if (vtrefMv === 0) {
+        vtrefWarn = "VTref reports 0 V (common on clones); continuing.";
+        status(vtrefWarn);
+      } else if (!opts.power && vtrefMv < 1500) {
         throw new FlashSessionError(
           `VTref is ${(vtrefMv / 1000).toFixed(2)} V. Power the controller (battery) or enable probe power. Do not do both.`,
         );
@@ -78,6 +79,7 @@ export class FlashSession {
       session.vtrefMv = vtrefMv;
       session.firmware = jlink.firmware;
       session.product = product;
+      session.vtrefWarn = vtrefWarn;
       return session;
     } catch (err) {
       await jlink.close();
@@ -86,19 +88,23 @@ export class FlashSession {
   }
 
   infoLine(): string {
-    return `${this.product} fw=${this.firmware || "?"} DPIDR=0x${this.dpidr.toString(16)} VTref=${(this.vtrefMv / 1000).toFixed(2)} V`;
+    const vt = this.vtrefMv === 0 ? "0 V (unreported)" : `${(this.vtrefMv / 1000).toFixed(2)} V`;
+    const warn = this.vtrefWarn ? ` — ${this.vtrefWarn}` : "";
+    return `${this.product} fw=${this.firmware || "?"} DPIDR=0x${this.dpidr.toString(16)} VTref=${vt}${warn}`;
   }
 
-  async dumpFlash(): Promise<Uint8Array> {
+  async dumpFlash(onProgress?: StatusFn): Promise<Uint8Array> {
     await this.mem.halt();
-    return this.mem.readMem(FLASH_BASE, IMAGE_SIZE);
+    return this.mem.readMem(FLASH_BASE, IMAGE_SIZE, (done, total) => {
+      onProgress?.(`Reading flash ${done}/${total}`);
+    });
   }
 
-  async verify(image: Uint8Array): Promise<void> {
+  async verify(image: Uint8Array, onProgress?: StatusFn): Promise<void> {
     if (image.length !== IMAGE_SIZE) {
       throw new FlashSessionError(`Image must be ${IMAGE_SIZE} bytes`);
     }
-    const got = await this.dumpFlash();
+    const got = await this.dumpFlash(onProgress);
     for (let i = 0; i < IMAGE_SIZE; i++) {
       if (got[i] !== image[i]) {
         throw new FlashSessionError(`Verify failed at 0x${(FLASH_BASE + i).toString(16)}`);
@@ -115,7 +121,7 @@ export class FlashSession {
       status?.(`${phase} ${done}/${total}`);
     });
     status?.("verifying…");
-    await this.verify(image);
+    await this.verify(image, status);
     await this.mem.resetRun();
   }
 

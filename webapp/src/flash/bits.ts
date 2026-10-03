@@ -24,8 +24,12 @@ export function bitsToInt(bits: boolean[]): number {
 
 export function intToBits(value: number, width: number): boolean[] {
   const bits: boolean[] = [];
-  for (let i = 0; i < width; i++) bits.push(((value >> i) & 1) === 1);
+  for (let i = 0; i < width; i++) bits.push(((value >>> i) & 1) === 1);
   return bits;
+}
+
+export function u32and(value: number, mask: number): number {
+  return (value & mask) >>> 0;
 }
 
 export function parity32(value: number): boolean {

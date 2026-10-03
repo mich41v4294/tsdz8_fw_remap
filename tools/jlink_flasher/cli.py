@@ -79,7 +79,7 @@ def cmd_flash(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m tools.jlink_flasher",
+        prog="jlink-flash / python -m tools.jlink_flasher",
         description="Dump, program, and verify TSDZ8 XMC1302 firmware via SEGGER J-Link (pylink).",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -101,7 +101,63 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def _read_line(prompt: str) -> str | None:
+    try:
+        return input(prompt)
+    except EOFError:
+        return None
+
+
+def _prompt_yes(question: str) -> bool:
+    answer = _read_line(f"{question} [y/N] ")
+    if answer is None:
+        return False
+    return answer.strip().lower() in ("y", "yes")
+
+
+def interactive() -> int:
+    print(LEGAL)
+    print()
+    print("1) info")
+    print("2) dump")
+    print("3) flash")
+    print("4) verify")
+    print("5) quit")
+    choice = _read_line("Choice: ")
+    if choice is None:
+        return 0
+    key = choice.strip().lower()
+    if key in ("", "5", "q", "quit"):
+        return 0
+
+    argv: list[str]
+    if key in ("1", "info"):
+        argv = ["info"]
+    elif key in ("2", "dump"):
+        output = _read_line("Output HEX path: ")
+        if output is None or not output.strip():
+            return 0
+        argv = ["dump", output.strip()]
+    elif key in ("3", "flash"):
+        hex_path = _read_line("HEX path: ")
+        if hex_path is None or not hex_path.strip():
+            return 0
+        argv = ["flash", hex_path.strip()]
+    elif key in ("4", "verify"):
+        hex_path = _read_line("HEX path: ")
+        if hex_path is None or not hex_path.strip():
+            return 0
+        argv = ["verify", hex_path.strip()]
+    else:
+        print("Unknown choice. Enter 1–5.", file=sys.stderr)
+        return 1
+
+    if _prompt_yes("Enable J-Link kickstart/target power?"):
+        argv.append("--power")
+    return _run(argv)
+
+
+def _run(argv: list[str]) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
@@ -109,6 +165,13 @@ def main(argv: list[str] | None = None) -> int:
     except (ProbeError, OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    raw = sys.argv[1:] if argv is None else argv
+    if not raw:
+        return interactive()
+    return _run(raw)
 
 
 if __name__ == "__main__":

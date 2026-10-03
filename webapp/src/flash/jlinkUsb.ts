@@ -1,4 +1,9 @@
-import { SEGGER_VID } from "./constants";
+import {
+  CAP_GET_EXT_CAPS,
+  CAP_GET_MAX_BLOCK_SIZE,
+  CAP_SELECT_TIF,
+  SEGGER_VID,
+} from "./constants";
 
 export const CMD = {
   VERSION: 0x01,
@@ -15,6 +20,11 @@ export const CMD = {
 } as const;
 
 export const IF_SWD = 1;
+export const VERSION_MAX_LEN = 256;
+
+export const USB_CLASS_CDC_COMM = 0x02;
+export const USB_CLASS_CDC_DATA = 0x0a;
+export const USB_CLASS_VENDOR = 0xff;
 
 export class JLinkError extends Error {
   constructor(message: string) {
@@ -61,11 +71,16 @@ function u16le(n: number): Uint8Array {
 
 function u32le(bytes: Uint8Array, offset = 0): number {
   return (
-    bytes[offset]! |
-    (bytes[offset + 1]! << 8) |
-    (bytes[offset + 2]! << 16) |
-    (bytes[offset + 3]! << 24)
-  ) >>> 0;
+    (bytes[offset]! |
+      (bytes[offset + 1]! << 8) |
+      (bytes[offset + 2]! << 16) |
+      (bytes[offset + 3]! << 24)) >>>
+    0
+  );
+}
+
+export function hasCap(caps: number, bit: number): boolean {
+  return ((caps >>> bit) & 1) === 1;
 }
 
 export class JLinkUsb {
@@ -87,19 +102,29 @@ export class JLinkUsb {
   async hello(): Promise<void> {
     await this.writeCmd(Uint8Array.from([CMD.GET_CAPS]));
     this.caps = u32le(await this.readExact(4));
-    try {
-      await this.writeCmd(Uint8Array.from([CMD.VERSION]));
-      const lenBytes = await this.readExact(2);
-      const n = lenBytes[0]! | (lenBytes[1]! << 8);
-      const raw = await this.readExact(n);
-      const z = raw.indexOf(0);
-      this.firmware = new TextDecoder().decode(z >= 0 ? raw.subarray(0, z) : raw).trim();
-    } catch {
-      this.firmware = "";
+    if (hasCap(this.caps, CAP_GET_EXT_CAPS)) {
+      await this.writeCmd(Uint8Array.from([CMD.GET_CAPS_EX]));
+      await this.readExact(32);
+    }
+    await this.writeCmd(Uint8Array.from([CMD.VERSION]));
+    const lenBytes = await this.readExact(2);
+    const n = lenBytes[0]! | (lenBytes[1]! << 8);
+    if (n === 0 || n > VERSION_MAX_LEN) {
+      throw new JLinkError(`VERSION length ${n} is out of range`);
+    }
+    const raw = await this.readExact(n);
+    const z = raw.indexOf(0);
+    this.firmware = new TextDecoder().decode(z >= 0 ? raw.subarray(0, z) : raw).trim();
+    if (hasCap(this.caps, CAP_GET_MAX_BLOCK_SIZE)) {
+      await this.writeCmd(Uint8Array.from([CMD.GET_MAX_MEM_BLOCK]));
+      this.maxMemBlock = u32le(await this.readExact(4));
     }
   }
 
   async selectSwd(): Promise<void> {
+    if (!hasCap(this.caps, CAP_SELECT_TIF)) {
+      return;
+    }
     await this.writeCmd(Uint8Array.from([CMD.SELECT_IF, 0xff]));
     const mask = u32le(await this.readExact(4));
     if (mask !== 0xffffffff && (mask & (1 << IF_SWD)) === 0) {
@@ -140,31 +165,130 @@ export class JLinkUsb {
   }
 }
 
-function findBulkPair(device: USBDevice): { iface: number; inEp: number; outEp: number } {
-  const cfg = device.configuration;
-  if (!cfg) throw new JLinkError("USB device has no configuration");
-  for (const iface of cfg.interfaces) {
+export type UsbEndpointView = {
+  endpointNumber: number;
+  direction: "in" | "out";
+  type: string;
+};
+
+export type UsbAlternateView = {
+  alternateSetting: number;
+  interfaceClass: number;
+  interfaceSubclass: number;
+  interfaceProtocol: number;
+  endpoints: UsbEndpointView[];
+};
+
+export type UsbInterfaceView = {
+  interfaceNumber: number;
+  alternates: UsbAlternateView[];
+};
+
+export type JlinkBulkPair = {
+  iface: number;
+  alternateSetting: number;
+  inEp: number;
+  outEp: number;
+};
+
+function bulkPair(alt: UsbAlternateView): { inEp: number; outEp: number } | null {
+  const bulk = alt.endpoints.filter((ep) => ep.type === "bulk");
+  if (bulk.length !== 2) return null;
+  let inEp: number | null = null;
+  let outEp: number | null = null;
+  for (const ep of bulk) {
+    if (ep.direction === "in") inEp = ep.endpointNumber;
+    if (ep.direction === "out") outEp = ep.endpointNumber;
+  }
+  if (inEp == null || outEp == null) return null;
+  return { inEp, outEp };
+}
+
+function isCdc(alt: UsbAlternateView): boolean {
+  return alt.interfaceClass === USB_CLASS_CDC_COMM || alt.interfaceClass === USB_CLASS_CDC_DATA;
+}
+
+function isVendorFf(alt: UsbAlternateView): boolean {
+  return (
+    alt.interfaceClass === USB_CLASS_VENDOR &&
+    alt.interfaceSubclass === USB_CLASS_VENDOR &&
+    alt.interfaceProtocol === USB_CLASS_VENDOR
+  );
+}
+
+function isVendorClass(alt: UsbAlternateView): boolean {
+  return alt.interfaceClass === USB_CLASS_VENDOR;
+}
+
+function altOf(interfaces: UsbInterfaceView[], pair: JlinkBulkPair): UsbAlternateView | undefined {
+  const iface = interfaces.find((x) => x.interfaceNumber === pair.iface);
+  return iface?.alternates.find((a) => a.alternateSetting === pair.alternateSetting);
+}
+
+export function findJlinkInterface(interfaces: UsbInterfaceView[]): JlinkBulkPair {
+  const candidates: JlinkBulkPair[] = [];
+  for (const iface of interfaces) {
     for (const alt of iface.alternates) {
-      let inEp: number | null = null;
-      let outEp: number | null = null;
-      for (const ep of alt.endpoints) {
-        if (ep.type !== "bulk") continue;
-        if (ep.direction === "in") inEp = ep.endpointNumber;
-        if (ep.direction === "out") outEp = ep.endpointNumber;
-      }
-      if (inEp != null && outEp != null) {
-        return { iface: iface.interfaceNumber, inEp, outEp };
-      }
+      if (isCdc(alt)) continue;
+      const pair = bulkPair(alt);
+      if (!pair) continue;
+      candidates.push({
+        iface: iface.interfaceNumber,
+        alternateSetting: alt.alternateSetting,
+        ...pair,
+      });
     }
   }
-  throw new JLinkError("No bulk IN/OUT pair on this J-Link interface");
+  const preferred = candidates.find((c) => {
+    const alt = altOf(interfaces, c);
+    return alt ? isVendorFf(alt) : false;
+  });
+  if (preferred) return preferred;
+  const vendorClass = candidates.find((c) => {
+    const alt = altOf(interfaces, c);
+    return alt ? isVendorClass(alt) : false;
+  });
+  if (vendorClass) return vendorClass;
+  throw new JLinkError(
+    "No J-Link vendor bulk interface (class 0xFF, two bulk endpoints). CDC/COM ports are ignored.",
+  );
+}
+
+function interfacesFromDevice(device: USBDevice): UsbInterfaceView[] {
+  const cfg = device.configuration;
+  if (!cfg) throw new JLinkError("USB device has no configuration");
+  return cfg.interfaces.map((iface) => ({
+    interfaceNumber: iface.interfaceNumber,
+    alternates: iface.alternates.map((alt) => ({
+      alternateSetting: alt.alternateSetting,
+      interfaceClass: alt.interfaceClass,
+      interfaceSubclass: alt.interfaceSubclass,
+      interfaceProtocol: alt.interfaceProtocol,
+      endpoints: alt.endpoints.map((ep) => ({
+        endpointNumber: ep.endpointNumber,
+        direction: ep.direction,
+        type: ep.type,
+      })),
+    })),
+  }));
+}
+
+export async function closeQuietly(device: USBDevice): Promise<void> {
+  try {
+    await device.close();
+  } catch {
+    /* already closed or never opened */
+  }
 }
 
 export class WebUsbBulk implements BulkUsb {
+  private leftover = new Uint8Array(0);
+
   constructor(
     private readonly device: USBDevice,
     private readonly inEp: number,
     private readonly outEp: number,
+    private readonly iface: number,
   ) {}
 
   async write(data: Uint8Array): Promise<void> {
@@ -185,28 +309,90 @@ export class WebUsbBulk implements BulkUsb {
     const out = new Uint8Array(n);
     let off = 0;
     while (off < n) {
+      if (this.leftover.length > 0) {
+        const take = Math.min(this.leftover.length, n - off);
+        out.set(this.leftover.subarray(0, take), off);
+        this.leftover = new Uint8Array(this.leftover.subarray(take));
+        off += take;
+        continue;
+      }
       const r = await this.device.transferIn(this.inEp, n - off);
       if (r.status !== "ok" || !r.data) {
         throw new JLinkError(`USB IN failed (${r.status})`);
       }
       const chunk = new Uint8Array(r.data.buffer, r.data.byteOffset, r.data.byteLength);
-      out.set(chunk, off);
-      off += chunk.length;
+      if (chunk.length === 0) {
+        throw new JLinkError("USB IN returned 0 bytes");
+      }
+      const need = n - off;
+      if (chunk.length <= need) {
+        out.set(chunk, off);
+        off += chunk.length;
+      } else {
+        out.set(chunk.subarray(0, need), off);
+        this.leftover = new Uint8Array(chunk.subarray(need));
+        off = n;
+      }
     }
     return out;
   }
 
   async close(): Promise<void> {
     try {
-      await this.device.close();
+      await this.device.releaseInterface(this.iface);
     } catch {
-      /* already closed */
+      /* not claimed */
     }
+    await closeQuietly(this.device);
   }
 }
 
 export function webUsbAvailable(): boolean {
   return typeof navigator !== "undefined" && "usb" in navigator;
+}
+
+function claimError(err: unknown): JLinkError {
+  const msg = err instanceof Error ? err.message : String(err);
+  return new JLinkError(
+    `Could not claim the J-Link USB interface (${msg}). Close J-Flash / JLinkExe / pylink. ` +
+      "On Windows the SEGGER driver often owns the device — use python -m tools.jlink_flasher instead.",
+  );
+}
+
+export async function attachJlinkDevice(device: USBDevice): Promise<{ jlink: JLinkUsb; product: string }> {
+  let claimed = -1;
+  try {
+    if (device.opened) {
+      await closeQuietly(device);
+    }
+    await device.open();
+    if (!device.configuration) {
+      await device.selectConfiguration(1);
+    }
+    const found = findJlinkInterface(interfacesFromDevice(device));
+    try {
+      await device.claimInterface(found.iface);
+    } catch (err) {
+      throw claimError(err);
+    }
+    claimed = found.iface;
+    if (found.alternateSetting !== 0) {
+      await device.selectAlternateInterface(found.iface, found.alternateSetting);
+    }
+    const jlink = new JLinkUsb(new WebUsbBulk(device, found.inEp, found.outEp, found.iface));
+    const product = device.productName ?? `J-Link ${device.productId.toString(16)}`;
+    return { jlink, product };
+  } catch (err) {
+    if (claimed >= 0) {
+      try {
+        await device.releaseInterface(claimed);
+      } catch {
+        /* */
+      }
+    }
+    await closeQuietly(device);
+    throw err;
+  }
 }
 
 export async function openWebJlink(): Promise<{ jlink: JLinkUsb; product: string }> {
@@ -218,21 +404,5 @@ export async function openWebJlink(): Promise<{ jlink: JLinkUsb; product: string
     throw new JLinkError("This browser has no WebUSB. Use desktop Chrome/Edge, or the Python CLI.");
   }
   const device = await usb.requestDevice({ filters: [{ vendorId: SEGGER_VID }] });
-  await device.open();
-  if (!device.configuration) {
-    await device.selectConfiguration(1);
-  }
-  const { iface, inEp, outEp } = findBulkPair(device);
-  try {
-    await device.claimInterface(iface);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new JLinkError(
-      `Could not claim the J-Link USB interface (${msg}). Close J-Flash / JLinkExe / pylink. ` +
-        "On Windows the SEGGER driver often owns the device — use python -m tools.jlink_flasher instead.",
-    );
-  }
-  const jlink = new JLinkUsb(new WebUsbBulk(device, inEp, outEp));
-  const product = device.productName ?? `J-Link ${device.productId.toString(16)}`;
-  return { jlink, product };
+  return attachJlinkDevice(device);
 }

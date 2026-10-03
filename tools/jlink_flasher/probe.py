@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any, Protocol
@@ -15,6 +16,7 @@ from tools.jlink_flasher.hexio import (
 
 DEFAULT_DEVICE = "XMC1302-T038x0064"
 DEFAULT_SPEED_KHZ = 4000
+VTREF_MIN_MV = 1500
 
 
 class ProbeError(RuntimeError):
@@ -65,14 +67,80 @@ def check_idchip(word: int, expected: int = IDCHIP_EXPECTED) -> None:
         )
 
 
+def _as_mv(value: Any) -> int | None:
+    if value is None:
+        return None
+    if callable(value):
+        try:
+            value = value()
+        except Exception:
+            return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    return None
+
+
+def read_vtref_mv(jlink: JLinkLike) -> int | None:
+    direct = _as_mv(getattr(jlink, "target_voltage", None))
+    if direct is not None:
+        return direct
+    hw = getattr(jlink, "hardware_status", None)
+    if hw is None:
+        return None
+    for name in ("voltage", "target_voltage", "vtarget"):
+        mv = _as_mv(getattr(hw, name, None))
+        if mv is not None:
+            return mv
+    return None
+
+
+def check_vtref(mv: int | None, *, power: bool) -> str | None:
+    """Return a warning, raise ProbeError, or None if voltage is OK / unknown."""
+    if mv is None:
+        return None
+    if mv == 0:
+        return "VTref reports 0 mV (common on clones); continuing."
+    if not power and 0 < mv < VTREF_MIN_MV:
+        raise ProbeError(
+            f"VTref is {mv / 1000:.2f} V. Power the controller (battery) or pass --power. "
+            "Do not do both."
+        )
+    return None
+
+
 def _set_kickstart_power(jlink: JLinkLike, enable: bool) -> None:
     cmd = "power on" if enable else "power off"
+    setter = getattr(jlink, "set_kickstart_power", None)
     try:
         jlink.exec_command(cmd)
-    except Exception:
-        setter = getattr(jlink, "set_kickstart_power", None)
+        return
+    except Exception as exec_err:
         if callable(setter):
-            setter(enable)
+            try:
+                setter(enable)
+                return
+            except Exception as set_err:
+                if enable:
+                    raise ProbeError(
+                        "This J-Link cannot switch target power"
+                    ) from set_err
+                return
+        if enable:
+            raise ProbeError("This J-Link cannot switch target power") from exec_err
+
+
+def _halt_core(jlink: JLinkLike) -> None:
+    halted = jlink.halt()
+    if halted:
+        return
+    try:
+        already = bool(jlink.halted())
+    except Exception:
+        already = False
+    if not already:
+        raise ProbeError("Core did not halt")
 
 
 def _progress(action: str, message: str, percentage: int) -> None:
@@ -105,11 +173,11 @@ def open_probe(
             probe.set_tif(swd)
         _set_kickstart_power(probe, power)
         probe.connect(device, speed=speed)
-        try:
-            probe.set_speed(speed)
-        except Exception:
-            pass
-        probe.halt()
+        probe.set_speed(speed)
+        warn = check_vtref(read_vtref_mv(probe), power=power)
+        if warn:
+            print(warn, file=sys.stderr)
+        _halt_core(probe)
         if not skip_chip_id:
             words = probe.memory_read32(IDCHIP_ADDR, 1)
             if not words:
@@ -151,10 +219,11 @@ def flash_image(
     base: int = FLASH_BASE,
     power: bool = False,
 ) -> None:
+    del power  # kickstart is applied at open_probe; never pulse 5 V inside flash()
     if len(image) != IMAGE_SIZE:
         raise HexError(f"Image must be {IMAGE_SIZE} bytes, got {len(image)}")
-    probe.halt()
-    probe.flash(list(image), base, on_progress=_progress, power_on=power)
+    _halt_core(probe)
+    probe.flash(list(image), base, on_progress=_progress, power_on=False)
     print()
     back = read_flash(probe, base, IMAGE_SIZE)
     if back != image:
@@ -175,4 +244,6 @@ def probe_info(probe: JLinkLike) -> str:
         chip = f"0x{word:08X} field=0x{idchip_field(word):04X}"
     except Exception as exc:
         chip = f"unread ({exc})"
-    return f"product={name} core_id={core_s} IDCHIP {chip}"
+    vt = read_vtref_mv(probe)
+    vt_s = f"{vt} mV" if vt is not None else "unread"
+    return f"product={name} core_id={core_s} IDCHIP {chip} VTref={vt_s}"
