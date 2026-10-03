@@ -1,0 +1,223 @@
+{
+  "report": "gap-low.json",
+  "agent": "gap-low",
+  "program": "original firmware thonghsheng.hex",
+  "project": "tsdz8_motor",
+  "range": "0x10001000-0x10005B24",
+  "created_count": 21,
+  "created": [
+    {
+      "address": "0x10001070",
+      "name": "CopyScatterLoadRegionBytes",
+      "gap": "0x10001068-0x100010A7",
+      "role": "ARM scatterload 16/8/4-byte copy handler (table at 0x100073A0)"
+    },
+    {
+      "address": "0x1000108C",
+      "name": "FillScatterLoadRegionZeros",
+      "gap": "0x10001068-0x100010A7",
+      "role": "ARM scatterload 16/8/4-byte zero-fill handler"
+    },
+    {
+      "address": "0x100012A2",
+      "name": "GetOscStatusShiftTimer",
+      "gap": "0x100012A2-0x100012D5",
+      "role": "Read OSC window status byte; shift soft-timer by 0x200000 ticks"
+    },
+    {
+      "address": "0x100012BC",
+      "name": "ReadOscMeasureFlagByte",
+      "gap": "0x100012A2-0x100012D5",
+      "role": "Return OSC measure flag at struct-4"
+    },
+    {
+      "address": "0x100012C4",
+      "name": "ResetOscMeasureWindowState",
+      "gap": "0x100012A2-0x100012D5",
+      "role": "Zero OSC window counters and set state bytes to 2"
+    },
+    {
+      "address": "0x10001328",
+      "name": "InitializeUnsignedMinMaxBounds",
+      "gap": "0x10001326-0x10001345",
+      "role": "Init 4-word 0xFFFFFFFF/0 bound block; optional store at ptr-0x18"
+    },
+    {
+      "address": "0x10001342",
+      "name": "GetConstantZeroValue",
+      "gap": "0x10001326-0x10001345",
+      "role": "Leaf that returns 0"
+    },
+    {
+      "address": "0x10001D94",
+      "name": "WriteCcu43PeriodShadow",
+      "gap": "0x10001D94-0x10001E07",
+      "role": "CCU40 slice3 PRS = ticks>>5; GCSS bit12 shadow"
+    },
+    {
+      "address": "0x10001DAA",
+      "name": "WriteCcu42PeriodShadow",
+      "gap": "0x10001D94-0x10001E07",
+      "role": "CCU40 slice2 PRS = (x+0x7FFF)>>4; GCSS bit8 shadow"
+    },
+    {
+      "address": "0x100025D8",
+      "name": "MatchForwardHallSectorStep",
+      "gap": "0x10002578-0x1000263D",
+      "role": "True if hall pair is forward step 1-5-4-6-2-3"
+    },
+    {
+      "address": "0x10003BD8",
+      "name": "SetNvicPriorityByteField",
+      "gap": "0x10003BD0-0x10003C13",
+      "role": "Duplicate NVIC_SetPriority (IPR / SHPR 2-bit field)"
+    },
+    {
+      "address": "0x10003C24",
+      "name": "InvokeUnusedIrqMarkerCc",
+      "gap": "0x10003C24-0x10003C83",
+      "role": "Thunk to WriteUnusedIrqMarkerCc"
+    },
+    {
+      "address": "0x10003C2C",
+      "name": "InvokeUnusedIrqMarkerBb",
+      "gap": "0x10003C24-0x10003C83",
+      "role": "Thunk to WriteUnusedIrqMarkerBb"
+    },
+    {
+      "address": "0x10003C34",
+      "name": "InvokeIrqTraceMailboxAa",
+      "gap": "0x10003C24-0x10003C83",
+      "role": "Thunk to WriteIrqTraceMailboxAa"
+    },
+    {
+      "address": "0x10003C3C",
+      "name": "SetNvicIserEnableBit",
+      "gap": "0x10003C24-0x10003C83",
+      "role": "NVIC ISER enable if irqNumber >= 0"
+    },
+    {
+      "address": "0x10003C4E",
+      "name": "ClearNvicIcerWithBarrier",
+      "gap": "0x10003C24-0x10003C83",
+      "role": "NVIC ICER disable plus DSB/ISB"
+    },
+    {
+      "address": "0x100044E0",
+      "name": "FillUnalignedMemoryBytes",
+      "gap": "0x100044E0-0x10004501",
+      "role": "__aeabi_memset unaligned prefix into word fill"
+    },
+    {
+      "address": "0x100044FE",
+      "name": "ClearUnalignedMemoryBytes",
+      "gap": "0x100044E0-0x10004501",
+      "role": "__aeabi_memclr trampoline (fillValue=0)"
+    },
+    {
+      "address": "0x1000584E",
+      "name": "ProcessScatterLoadRleBlock",
+      "gap": "0x10005848-0x100058BF",
+      "role": "Scatterload nibble RLE: copy-run then zero-run"
+    },
+    {
+      "address": "0x10005888",
+      "name": "HandleScuEventBits16And17",
+      "gap": "0x10005848-0x100058BF",
+      "role": "Clear SCU status bits 16/17; sticky RAM flag bit2"
+    },
+    {
+      "address": "0x10005924",
+      "name": "CheckRamStatusFlagBit1",
+      "gap": "0x10005924-0x10005943",
+      "role": "Return if RAM flag bit1 set, else infinite loop"
+    }
+  ],
+  "skipped": [
+    {
+      "gap": "0x10001068-0x1000106F",
+      "reason": "literal_pool",
+      "note": "Scatterload table-bound words read by RunScatterLoadInitTable (adr 0x10001068)"
+    },
+    {
+      "gap": "0x10001326-0x10001327",
+      "reason": "nop_pad",
+      "note": "movs r0,r0 before InitializeUnsignedMinMaxBounds"
+    },
+    {
+      "gap": "0x100018EE-0x10001953",
+      "reason": "literal_pool",
+      "note": "NVIC/SCU literals for EnableNvicIrqMask; no Thumb prologue"
+    },
+    {
+      "gap": "0x10001BF2-0x10001C3F",
+      "reason": "literal_pool",
+      "note": "NVIC literals for EnableNvicIrqLine; no Thumb prologue"
+    },
+    {
+      "gap": "0x10001DC4-0x10001E07",
+      "reason": "literal_pool",
+      "note": "CCU40/SCU constants after WriteCcu4xPeriodShadow"
+    },
+    {
+      "gap": "0x10002390-0x100023E3",
+      "reason": "literal_pool",
+      "note": "Peripheral address pool (0xE000E400/0x40010000) for FUN_1000237E"
+    },
+    {
+      "gap": "0x10002578-0x100025D7",
+      "reason": "literal_pool",
+      "note": "SRAM pointers used by DisableMotorOutput; function starts at 0x100025D8"
+    },
+    {
+      "gap": "0x10002B1E-0x10002B6B",
+      "reason": "tail",
+      "note": "NOP plus literals of previous FUN_10002A9E; no new prologue"
+    },
+    {
+      "gap": "0x10002F52-0x10002FE3",
+      "reason": "tail",
+      "note": "NOP plus literals of ApplyAssistLevelTargets; no new prologue"
+    },
+    {
+      "gap": "0x100033DE-0x100034BF",
+      "reason": "tail",
+      "note": "Literal-pool hole inside RunRideControlLoop; code resumes at 0x100034C0"
+    },
+    {
+      "gap": "0x10003632-0x10003663",
+      "reason": "tail",
+      "note": "Literal-pool hole of RunRideControlLoop before FUN_10003664"
+    },
+    {
+      "gap": "0x100039F2-0x10003AAF",
+      "reason": "owned_elsewhere",
+      "note": "Skipped; reset-startup agent owns this range"
+    },
+    {
+      "gap": "0x10003AC2-0x10003AEB",
+      "reason": "literal_pool",
+      "note": "Literal pool of FUN_10003AB8 (loads r0-r3 then bx lr)"
+    },
+    {
+      "gap": "0x10003BD0-0x10003BD7",
+      "reason": "literal_pool",
+      "note": "NVIC IPR/SCB bases for ApplyNvicIrqPriority; function at 0x10003BD8"
+    },
+    {
+      "gap": "0x10003C6A-0x10003C83",
+      "reason": "literal_pool",
+      "note": "NVIC/SRAM literals after ClearNvicIcerWithBarrier"
+    },
+    {
+      "gap": "0x10004386-0x100043C3",
+      "reason": "literal_pool",
+      "note": "Literals after previous function pop; no Thumb prologue"
+    },
+    {
+      "gap": "0x10005848-0x1000584D",
+      "reason": "literal_pool",
+      "note": "4-byte data then lone bx lr stub; real functions at 0x1000584E"
+    }
+  ]
+}

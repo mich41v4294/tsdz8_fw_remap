@@ -1,0 +1,191 @@
+{
+  "agent": "ride-systick",
+  "functions": [
+    {
+      "address": "0x10003020",
+      "old_name": "FUN_10003020",
+      "new_name": "HandleRideTimerReload",
+      "purpose": "Ride-loop leftover sharing InitializeRideTimer's 0x40020000 block: if word+0x10 <= word+0xC, restore word+8 to sentinel 0xABADCAFE. Called every iteration of RunRideControlLoop.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": [
+        {"addr": "0x10003022", "value": "0xC", "meaning": "Timer/compare word offset compared as current count"},
+        {"addr": "0x10003024", "value": "0x10", "meaning": "Timer/match word offset (InitializeRideTimer writes 1 here)"},
+        {"addr": "0x1000302c", "value": "0x8", "meaning": "Reload/status word restored on elapsed"},
+        {"addr": "0x100033f4", "value": "0x40020000", "meaning": "Peripheral/timer base shared with InitializeRideTimer"},
+        {"addr": "0x100033f8", "value": "0xABADCAFE", "meaning": "Sentinel written to +8 when match <= count"}
+      ]
+    },
+    {
+      "address": "0x10003030",
+      "old_name": "FUN_10003030",
+      "new_name": "InvokeRideStartupStub",
+      "purpose": "Empty bx lr placeholder immediately before InitializeRideTimer. RunRideControlLoop calls it once after defaults/timer init and before the infinite ride loop.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": []
+    },
+    {
+      "address": "0x10003664",
+      "old_name": "FUN_10003664",
+      "new_name": "LoadMotorScaleDefaults",
+      "purpose": "Prefill RAM motor-scale struct at 0x200025CC with float motor constants and uint16 defaults (mode 3/2, 0x1300, 16, 400, 800, 600, 4000) then call ComputeDerivedScaleTables. First step of ComputeMotorScaleTables.",
+      "variables_total": 3,
+      "variables_renamed": 3,
+      "immediates": [
+        {"addr": "0x1000366a", "value": "0x42800000", "meaning": "64.0f default written at scaleTableBase+0x34"},
+        {"addr": "0x10003676", "value": "3", "meaning": "uint16 mode/count at scale table offset 0"},
+        {"addr": "0x100036c6", "value": "2", "meaning": "uint16 at scale table +2"},
+        {"addr": "0x100036ca", "value": "0x41000000", "meaning": "8.0f default"},
+        {"addr": "0x100036ea", "value": "0x1300", "meaning": "uint16 4864 at +4"},
+        {"addr": "0x100036ee", "value": "0x10", "meaning": "uint16 16 at +6 (poles/shift-like)"},
+        {"addr": "0x100036f2", "value": "400", "meaning": "uint16 current-related default at +8"},
+        {"addr": "0x100036f4", "value": "2", "meaning": "uint16 at +10"},
+        {"addr": "0x100036f6", "value": "800", "meaning": "uint16 at +12"},
+        {"addr": "0x100036f8", "value": "600", "meaning": "uint16 at +14"},
+        {"addr": "0x100036fa", "value": "4000", "meaning": "uint16 at +16"},
+        {"addr": "0x100039f4", "value": "0x200025CC", "meaning": "RAM motor scale struct base"}
+      ]
+    },
+    {
+      "address": "0x10003ab0",
+      "old_name": "FUN_10003ab0",
+      "new_name": "InvokeEmptyLibcInit",
+      "purpose": "Empty nop; bx lr. Reset_Handler at 0x10003A84 BLX this after InitializeCmsisSystemCore and before bx main (0x1000102C). GCC-style __libc_init_array with no constructors. Not NMI/HardFault (those are b . at 0x10003AA4–0x10003AAE).",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": []
+    },
+    {
+      "address": "0x10003ab4",
+      "old_name": "FUN_10003ab4",
+      "new_name": "HandlePllInitByStartup",
+      "purpose": "XMC CMSIS AllowPLLInitByStartup: movs r0,#1; bx lr. Called only from InitializeCmsisSystemCore so ROM/startup may configure the PLL.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": [
+        {"addr": "0x10003ab4", "value": "1", "meaning": "Return 1 = allow PLL init by startup"}
+      ]
+    },
+    {
+      "address": "0x10003ab8",
+      "old_name": "FUN_10003ab8",
+      "new_name": "GetUserStackHeapBounds",
+      "purpose": "ARM microlib __user_initial_stackheap: returns r0=heap base 0x20002C10, r1=stack top 0x20003210, r2=r3=heap/stack meet 0x20002E10. Called from FUN_10005750 heap descriptor init.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": [
+        {"addr": "0x10003adc", "value": "0x20002C10", "meaning": "Heap base (r0)"},
+        {"addr": "0x10003ae0", "value": "0x20003210", "meaning": "Stack top / initial SP (r1)"},
+        {"addr": "0x10003ae4", "value": "0x20002E10", "meaning": "Heap limit (r2)"},
+        {"addr": "0x10003ae8", "value": "0x20002E10", "meaning": "Stack limit (r3), meets heap"}
+      ]
+    },
+    {
+      "address": "0x10003aec",
+      "old_name": "FUN_10003aec",
+      "new_name": "InitializeCmsisSystemCore",
+      "purpose": "CMSIS SystemInit: push lr, BL HandlePllInitByStartup, pop pc. First BLX target from Reset_Handler (vector 0x10003A85).",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": []
+    },
+    {
+      "address": "0x10003b38",
+      "old_name": "FUN_10003b38",
+      "new_name": "WriteNvicIrqPriority",
+      "purpose": "CMSIS NVIC_SetPriority copy: 2-bit priority in bits 7:6. IRQn>=0 via NVIC IPR 0xE000E400; negative (SysTick_IRQn=-1) via SCB SHPR 0xE000ED00+0x1C. Caller FUN_1000121c uses IRQn=-1.",
+      "variables_total": 6,
+      "variables_renamed": 6,
+      "immediates": [
+        {"addr": "0x10003b3a", "value": "0xFF", "meaning": "Priority byte mask before shift into IPR word"},
+        {"addr": "0x10003b40", "value": "6", "meaning": "priority<<6 for __NVIC_PRIO_BITS==2"},
+        {"addr": "0x10003b60", "value": "8", "meaning": "System-handler index (IRQn&0xF)-8"},
+        {"addr": "0x10003b6a", "value": "0x1C", "meaning": "SCB SHPR offset from SCB base"},
+        {"addr": "0x10003b88", "value": "0xE000E400", "meaning": "NVIC->IP"},
+        {"addr": "0x10003b8c", "value": "0xE000ED00", "meaning": "SCB base"}
+      ]
+    },
+    {
+      "address": "0x10003b74",
+      "old_name": "FUN_10003b74",
+      "new_name": "EnableNvicIrqLine",
+      "purpose": "CMSIS NVIC_EnableIRQ: if irqNumber>=0 write 1<<(irq&31) to NVIC ISER 0xE000E100. Callers enable IRQ0 (SCU/IRQ) and IRQ1.",
+      "variables_total": 1,
+      "variables_renamed": 1,
+      "immediates": [
+        {"addr": "0x10003b76", "value": "0", "meaning": "Skip ISER for negative system-handler IRQn"},
+        {"addr": "0x10003b7c", "value": "1", "meaning": "ISER set-enable bit before shift"},
+        {"addr": "0x10003b90", "value": "0xE000E100", "meaning": "NVIC->ISER"}
+      ]
+    },
+    {
+      "address": "0x10003b94",
+      "old_name": "FUN_10003b94",
+      "new_name": "ApplyNvicIrqPriority",
+      "purpose": "Second NVIC_SetPriority copy (same IPR/SHPR math and 0xE000E400/0xE000ED00). FUN_10001420 uses SysTick_IRQn=-1 with priority 3 then 1 while bringing up a timer.",
+      "variables_total": 6,
+      "variables_renamed": 6,
+      "immediates": [
+        {"addr": "0x10003b96", "value": "0xFF", "meaning": "Priority byte mask"},
+        {"addr": "0x10003b9c", "value": "6", "meaning": "priority<<6 for 2-bit NVIC priority"},
+        {"addr": "0x10003bbc", "value": "8", "meaning": "System-handler index (IRQn&0xF)-8"},
+        {"addr": "0x10003bc6", "value": "0x1C", "meaning": "SCB SHPR offset"},
+        {"addr": "0x10003bd0", "value": "0xE000E400", "meaning": "NVIC->IP"},
+        {"addr": "0x10003bd4", "value": "0xE000ED00", "meaning": "SCB base"}
+      ]
+    },
+    {
+      "address": "0x10003c14",
+      "old_name": "FUN_10003c14",
+      "new_name": "InitializeRamDriverVeneer",
+      "purpose": "Startup writes Thumb trampoline 0x46874823 (ldr r0,[pc,#0x8C]; mov pc,r0) to 0x20000040 and target 0x10005889 to +0x90 (0x200000D0). Called from clock/IRQ bring-up before EnableNvicIrqLine(0).",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": [
+        {"addr": "0x10003c1c", "value": "0x90", "meaning": "Byte offset from veneer to loaded target word"},
+        {"addr": "0x10003c74", "value": "0x20000040", "meaning": "RAM veneer destination"},
+        {"addr": "0x10003c78", "value": "0x46874823", "meaning": "Thumb ldr/mov-pc trampoline bytes"},
+        {"addr": "0x10003c7c", "value": "0x10005889", "meaning": "Thumb target function pointer stored at +0x90"}
+      ]
+    },
+    {
+      "address": "0x10003c84",
+      "old_name": "FUN_10003c84",
+      "new_name": "ComputeDerivedScaleTables",
+      "purpose": "Soft-float derivation of motor scale/limit tables from LoadMotorScaleDefaults fields: clamp uint32 scales, publish int16 copies, set ride flag 0x2000000 on overflow vs cap DAT_10004390. Ends with SCU IDCHIP check (0x40010000+8 bits[23:8]==0xF1C0) else hang; writes 0x1EA to 0x200026B4.",
+      "variables_total": 25,
+      "variables_renamed": 25,
+      "immediates": [
+        {"addr": "0x10003c84", "value": "100", "meaning": "Percent rounding quantum (div/rem then *100)"},
+        {"addr": "0x10003c84", "value": "0xFFFFFFFF", "meaning": "ScaleFloatByPowerTwo exponent -1 (halve/negate-ish)"},
+        {"addr": "0x10003c84", "value": "0x10", "meaning": "ldexp-style +16 then -12 (0xFFFFFFF4) on a scale"},
+        {"addr": "0x10003c84", "value": "0x4B800000", "meaning": "IEEE float 16777216.0f used as dividend in derived slot [0xb]"},
+        {"addr": "0x10003c84", "value": "-15 / 0x18 / 0xF / 0xE / 0xC", "meaning": "Double/float power-of-two scales in FOC-like factors"},
+        {"addr": "0x10003c84", "value": "0x40000000", "meaning": "Double pow base (2.0) high word"},
+        {"addr": "0x10003c84", "value": "0xFDFFFFFF / 0x2000000", "meaning": "Clear/set overflow status bit 25 on ride flags"},
+        {"addr": "0x10003c84", "value": "1,2,4,8", "meaning": "Per-channel overflow bits packed into motorScaleStruct[0]"},
+        {"addr": "0x100043b8", "value": "0x40010000", "meaning": "SCU_GENERAL base; +8 is IDCHIP"},
+        {"addr": "0x100043bc", "value": "0xF1C0", "meaning": "Expected (IDCHIP & 0xFFFFFF)>>8 for this XMC1302"},
+        {"addr": "0x100043c0", "value": "0x1EA", "meaning": "490 stored at 0x200026B4 after chip-id gate"}
+      ]
+    },
+    {
+      "address": "0x100043c4",
+      "old_name": "FUN_100043c4",
+      "new_name": "CalculateUnsignedLongDivmod",
+      "purpose": "Software uint64 divmod (__aeabi_uldivmod): normalize divisor by 16/8/4/2/1, restoring loop yields quot in r0/r1 and rem in r2/r3. FUN_10001150 uses (value*percent)/100 as a window half-width.",
+      "variables_total": 7,
+      "variables_renamed": 7,
+      "immediates": [
+        {"addr": "0x100043e2", "value": "1", "meaning": "Initial normalize shift count"},
+        {"addr": "0x100043f0", "value": "0x21", "meaning": "33-bit path when high half of dividend is small"},
+        {"addr": "0x1000440c", "value": "0x10", "meaning": "Normalize shift 16"},
+        {"addr": "0x10004428", "value": "8", "meaning": "Normalize shift 8"},
+        {"addr": "0x10004444", "value": "4", "meaning": "Normalize shift 4"},
+        {"addr": "0x10004460", "value": "2", "meaning": "Normalize shift 2"},
+        {"addr": "0x10004478", "value": "1", "meaning": "Normalize shift 1 before restoring loop"}
+      ]
+    }
+  ]
+}

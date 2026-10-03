@@ -1,0 +1,272 @@
+{
+  "agent": "motor-pwm",
+  "functions": [
+    {
+      "address": "0x10002420",
+      "old_name": "FUN_10002420",
+      "new_name": "LookupTemperatureAdcPercent",
+      "purpose": "Map 12-bit NTC ADC at VADC 0x48030B04 through a 40-point ascending table (0x100071DC, 385..944) to assist percent 100..61. RunRideControlLoop averages 4 samples and derates current below 75 / 92 percent. ADC>=944 forces 60%.",
+      "variables_total": 3,
+      "variables_renamed": 3,
+      "immediates": [
+        {"addr": "0x10002436", "value": "0x64", "meaning": "100% table base (return 100-index)"},
+        {"addr": "0x10002440", "value": "0x28", "meaning": "40-entry NTC/SOC-style derate table length"},
+        {"addr": "0x10002444", "value": "0x3B0", "meaning": "ADC>=944 (0x3B<<4) hottest clamp"},
+        {"addr": "0x1000244C", "value": "0x3C", "meaning": "minimum 60% assist when NTC ADC>=944 (thermal floor)"},
+        {"addr": "0x100071DC", "value": "385..944", "meaning": "uint16 NTC ADC thresholds for 100% down to 61%"}
+      ]
+    },
+    {
+      "address": "0x10002450",
+      "old_name": "FUN_10002450",
+      "new_name": "ReadVadcResult700Channel7",
+      "purpose": "12-bit read of VADC 0x48030700+0x1C. Same register as ReadAdcChannelHigh; RAM veneer thunk_FUN_10002450 calls this copy.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": [
+        {"addr": "0x10002454", "value": "0xFFF", "meaning": "12-bit ADC result mask via lsls/lsrs #0x14"}
+      ]
+    },
+    {
+      "address": "0x1000245a",
+      "old_name": "FUN_1000245a",
+      "new_name": "ReadVadcResult700Channel0",
+      "purpose": "12-bit read of VADC 0x48030700+0. Same register as ReadAdcChannelLow; RAM veneer copy.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": [
+        {"addr": "0x1000245E", "value": "0xFFF", "meaning": "12-bit ADC result mask"}
+      ]
+    },
+    {
+      "address": "0x10002464",
+      "old_name": "FUN_10002464",
+      "new_name": "ReadTempBankAdcResult0",
+      "purpose": "12-bit read of VADC 0x48030B00+0 (same bank as NTC +4, battery current +0x18, torque-like +0x1C).",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": [
+        {"addr": "0x10002468", "value": "0xFFF", "meaning": "12-bit ADC result mask"}
+      ]
+    },
+    {
+      "address": "0x1000247c",
+      "old_name": "FUN_1000247c",
+      "new_name": "InvokeRamDriverStartup",
+      "purpose": "Flash wrapper that BL thunk_EXT_FUN_2000070a. Called from RunRideControlLoop before DisableMotorOutput during PWM/driver bring-up.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": []
+    },
+    {
+      "address": "0x10002484",
+      "old_name": "FUN_10002484",
+      "new_name": "EnableMotorPwmOutput",
+      "purpose": "Inverse of DisableMotorOutput: clear ride PWM state, capture P1 hall bits, apply hall sector pattern, add ~30 electrical-degree offset, set enable flag, start CCU8-like timer at 0x50010040 (write 0x333 to +4, set bit2 at +8, set status bits 0x100/8/4, clear bit4).",
+      "variables_total": 6,
+      "variables_renamed": 6,
+      "immediates": [
+        {"addr": "0x10002490", "value": "0x100", "meaning": "motor status word+4 bit 8 set on enable"},
+        {"addr": "0x100024EE", "value": "0x8", "meaning": "CCU/status run bit set"},
+        {"addr": "0x100024F6", "value": "0x10", "meaning": "CCU/status bit 4 cleared"},
+        {"addr": "0x10002504", "value": "0x4", "meaning": "timer+8 shadow/start bit and status bit 2"},
+        {"addr": "0x100025C0", "value": "0x333", "meaning": "PWM timer compare/period written to 0x50010044 on enable (0 on disable)"},
+        {"addr": "0x100025B4", "value": "0x1555", "meaning": "hall commutation angle offset ~30deg (5461/65536*360)"}
+      ]
+    },
+    {
+      "address": "0x1000263e",
+      "old_name": "FUN_1000263e",
+      "new_name": "ApplyHallSectorPwmPattern",
+      "purpose": "Direction bit at 0x20002694 selects forward vs reverse hall-sector tables (0x200024DC / 0x200024E8). Calls RAM CORDIC/sector helper JumpToRamSlot2422, writes MCM/period pattern to 0x50010034, sets timer+8 bit.",
+      "variables_total": 4,
+      "variables_renamed": 4,
+      "immediates": [
+        {"addr": "0x10002646", "value": "bit8", "meaning": "direction test via lsls #0x17 on status+4"}
+      ]
+    },
+    {
+      "address": "0x100026e2",
+      "old_name": "FUN_100026e2",
+      "new_name": "ReadHallSensorPortBits",
+      "purpose": "Read XMC P1_IN at 0x40040124 and mask bits [2:0] (3-bit hall state).",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": [
+        {"addr": "0x100026E6", "value": "7", "meaning": "hall mask via lsls/lsrs #0x1d"}
+      ]
+    },
+    {
+      "address": "0x100026ec",
+      "old_name": "FUN_100026ec",
+      "new_name": "LookupHallCommutationAngle",
+      "purpose": "Map hall state through signed-byte sector map at 0x2000250A (+0 fwd, +8 rev) into uint16 angle table at 0x1000722C; reverse path adds extra offset word.",
+      "variables_total": 1,
+      "variables_renamed": 1,
+      "immediates": [
+        {"addr": "0x10002702", "value": "8", "meaning": "reverse-direction hall map offset"}
+      ]
+    },
+    {
+      "address": "0x1000273c",
+      "old_name": "FUN_1000273c",
+      "new_name": "CopyBytesFromSourcePointer",
+      "purpose": "Store source pointer at ride-state+0x34 and copy 255 bytes into 0x2000296C. Called from RunRideControlLoop init with a flash config pointer.",
+      "variables_total": 5,
+      "variables_renamed": 5,
+      "immediates": [
+        {"addr": "0x1000273c", "value": "0xFF", "meaning": "255-byte config/image copy length"}
+      ]
+    },
+    {
+      "address": "0x1000275a",
+      "old_name": "FUN_1000275a",
+      "new_name": "InvokeBlockCompareVector",
+      "purpose": "Swap args and BLX function pointer at *0x104. Returns 1 unless hook result==0x10000 (256-byte compare/commit success).",
+      "variables_total": 3,
+      "variables_renamed": 3,
+      "immediates": [
+        {"addr": "0x10002766", "value": "0x104", "meaning": "vector/hook pointer used as block compare"},
+        {"addr": "0x1000276C", "value": "0x10000", "meaning": "expected success code for 256-byte block match"}
+      ]
+    },
+    {
+      "address": "0x1000277a",
+      "old_name": "FUN_1000277a",
+      "new_name": "CopyByteBufferRange",
+      "purpose": "Byte memcpy(src, dst, len) with 16-bit index; used to snapshot the 256-byte config block.",
+      "variables_total": 4,
+      "variables_renamed": 4,
+      "immediates": []
+    },
+    {
+      "address": "0x1000278e",
+      "old_name": "FUN_1000278e",
+      "new_name": "UpdateConfigBlockSlice",
+      "purpose": "Copy 256-byte config image, patch bytes at (addr-base)&0xFF, then InvokeBlockCompareVector. Returns true on compare failure.",
+      "variables_total": 9,
+      "variables_renamed": 9,
+      "immediates": [
+        {"addr": "0x1000278e", "value": "0x100", "meaning": "256-byte config shadow size"}
+      ]
+    },
+    {
+      "address": "0x100027e6",
+      "old_name": "FUN_100027e6",
+      "new_name": "ComputePackedDatetimeHours",
+      "purpose": "Hour delta between two packed date/time words at 0x20002AF4 using 8760 (year), 720 (month*30d), 24 (day). Stores signed hours at ride-state+0x1C; dispatcher treats <721 as in-warranty/service window.",
+      "variables_total": 11,
+      "variables_renamed": 11,
+      "immediates": [
+        {"addr": "0x10002B30", "value": "8760", "meaning": "hours per year (24*365) scale"},
+        {"addr": "0x10002824", "value": "720", "meaning": "0x2D<<4 hours per 30-day month"},
+        {"addr": "0x10002856", "value": "0x18", "meaning": "24 hours per day"}
+      ]
+    },
+    {
+      "address": "0x100028a8",
+      "old_name": "FUN_100028a8",
+      "new_name": "UpdateAnalogWindowHoldCount",
+      "purpose": "If analog at 0x2000269C is in [900,1131) decrement ride-state+6; else increment up to 150. Analog-in-band hold / out-of-band slew (torque/current window).",
+      "variables_total": 1,
+      "variables_renamed": 1,
+      "immediates": [
+        {"addr": "0x100028AA", "value": "900", "meaning": "0xE1<<2 analog window low (current/torque band)"},
+        {"addr": "0x100028B4", "value": "0xE7", "meaning": "231-count window width (high=1131)"},
+        {"addr": "0x100028BA", "value": "0x96", "meaning": "150 max out-of-window hold count"}
+      ]
+    },
+    {
+      "address": "0x100028ce",
+      "old_name": "FUN_100028ce",
+      "new_name": "UpdateAuxAdcSlewLevel",
+      "purpose": "Read FUN_100023ee (VADC 0x48030B00+0x14), store at ride-state+0x20, slew byte +5 toward 0..15. Threshold is ADC + (-1843) < 410 i.e. ADC < 2253.",
+      "variables_total": 2,
+      "variables_renamed": 2,
+      "immediates": [
+        {"addr": "0x100028DE", "value": "0x19A", "meaning": "410 after adding signed offset -1843 (aux ADC slew trip)"},
+        {"addr": "0x100028E8", "value": "0xF", "meaning": "15 max aux-ADC slew level"}
+      ]
+    },
+    {
+      "address": "0x100028fe",
+      "old_name": "FUN_100028fe",
+      "new_name": "UpdateMotorRunningDebounce",
+      "purpose": "If voltage-like <=600 or speed/current-like <=4000 or status bits fail, decay debounce and clear 0x200000. Else increment to 500 (4000>>3) then set running-permit bit 0x200000.",
+      "variables_total": 1,
+      "variables_renamed": 1,
+      "immediates": [
+        {"addr": "0x1000290A", "value": "600", "meaning": "0x4B<<3 voltage/current floor for run-permit"},
+        {"addr": "0x1000290E", "value": "4000", "meaning": "0x7D<<5 speed/current threshold (also derives 500 debounce)"},
+        {"addr": "0x10002930", "value": "500", "meaning": "4000>>3 run-permit debounce counts"},
+        {"addr": "0x10002914", "value": "0x200000", "meaning": "latched motor-running / permit flag"}
+      ]
+    },
+    {
+      "address": "0x1000295a",
+      "old_name": "FUN_1000295a",
+      "new_name": "UpdateMotorFaultCode",
+      "purpose": "Priority-encode status bits at 0x20002690 into fault code 1..11 at fault-state+5. Codes are held off until a 30-count debounce at DAT_10002B54 expires.",
+      "variables_total": 1,
+      "variables_renamed": 1,
+      "immediates": [
+        {"addr": "0x100029F4", "value": "0x1E", "meaning": "30-sample fault-code debounce"}
+      ]
+    },
+    {
+      "address": "0x10002a04",
+      "old_name": "FUN_10002a04",
+      "new_name": "UpdateCurrentHeadroomSlew",
+      "purpose": "When measured current < limit and voltage is below limit/2 and limit/8, set headroom steps=(limit-measured-70)>>5 and slew a 0..12 assist/offset byte. Jump-load if slew==0 and steps>3.",
+      "variables_total": 6,
+      "variables_renamed": 6,
+      "immediates": [
+        {"addr": "0x10002A38", "value": "0x46", "meaning": "70-count current margin before headroom steps"},
+        {"addr": "0x10002A44", "value": ">>5", "meaning": "headroom step scale (diff-70)/32"},
+        {"addr": "0x10002A7A", "value": "0xC", "meaning": "cap 12 on current-headroom slew byte"}
+      ]
+    },
+    {
+      "address": "0x10002a84",
+      "old_name": "FUN_10002a84",
+      "new_name": "UpdateDisplayChecksumTask",
+      "purpose": "Every 13 ticks of ride-state+2, run FUN_100022e4 (24-byte display TX checksum/copy into USIC-like regs).",
+      "variables_total": 1,
+      "variables_renamed": 1,
+      "immediates": [
+        {"addr": "0x10002A8A", "value": "0xD", "meaning": "13-tick period between display checksum rebuilds"}
+      ]
+    },
+    {
+      "address": "0x10002a9e",
+      "old_name": "FUN_10002a9e",
+      "new_name": "DispatchMotorControlTimeslice",
+      "purpose": "5-slot outer / 10-slot inner motor ISR scheduler: RAM FOC/current/PWM slots plus display checksum, 300-count flag timeout, 2.5x current target, fault/run/aux/window/datetime helpers. Stall timer 0..1000 at ride-state+0x10.",
+      "variables_total": 9,
+      "variables_renamed": 9,
+      "immediates": [
+        {"addr": "0x10002AA6", "value": "5", "meaning": "outer timeslice cardinality"},
+        {"addr": "0x10002ADE", "value": "10", "meaning": "inner timeslice cardinality"},
+        {"addr": "0x10002B80", "value": "300", "meaning": "0xFF+0x2D motor-flag timeout reload (current/power related)"},
+        {"addr": "0x10002BA0", "value": "0x64", "meaning": "100 wrap on ride-state[0] before FUN_10002330"},
+        {"addr": "0x10002C04", "value": "0xF", "meaning": "15-count current-limit subslot before headroom slew"},
+        {"addr": "0x10002C1E", "value": "720", "meaning": "0x2D<<4 hour-delta compare (~30d) vs ride-state+0x1C"},
+        {"addr": "0x10002C28", "value": "0x14", "meaning": "20 packed-field threshold with 720h check for flag 0x100000"},
+        {"addr": "0x10002C5A", "value": "2.5x", "meaning": "current target = raw*2 + raw>>1 into control+0x12 when motor bit set"},
+        {"addr": "0x10002CB8", "value": "1000", "meaning": "0x7D<<3 stall/watchdog timer max at ride-state+0x10"}
+      ]
+    },
+    {
+      "address": "0x10002cca",
+      "old_name": "FUN_10002cca",
+      "new_name": "UpdatePhaseCurrentFaultTimer",
+      "purpose": "If motor-enable bit set and any of 3 consecutive signed phase/current samples +299 is below limit AND commanded current > floor, ramp ride-state+0x1E to 1000; else decay. Clears timer when related flags drop.",
+      "variables_total": 1,
+      "variables_renamed": 1,
+      "immediates": [
+        {"addr": "0x10002CDE", "value": "299", "meaning": "0xFF+0x2C phase-current compare offset (open/imbalance)"},
+        {"addr": "0x10002D0E", "value": "1000", "meaning": "0x7D<<3 max phase-current fault hold timer"}
+      ]
+    }
+  ]
+}

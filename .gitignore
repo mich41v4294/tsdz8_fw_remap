@@ -1,0 +1,18 @@
+# Vendor firmware — keep local; do not publish
+*.hex
+
+# Ghidra project database and machine lockfiles
+*.gpr
+*.rep/
+*.lock
+*.lock~
+
+# Node
+node_modules/
+dist/
+
+# OS / editor
+.DS_Store
+*.swp
+.vscode/
+.idea/

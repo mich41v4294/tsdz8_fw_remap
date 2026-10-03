@@ -1,0 +1,73 @@
+{
+  "agent": "const-tables",
+  "range": "0x10009810-0x10010FFF",
+  "scan": {
+    "tail_bytes": 30704,
+    "nonzero_bytes": 118,
+    "erased_ff_bytes": 30586,
+    "defined_strings": 0,
+    "missed_thumb_functions": 0,
+    "last_function": {
+      "name": "FUN_100097f6",
+      "body_end": "0x1000980F",
+      "note": "ARM common switch8 helper; body ends immediately before this range. Bytes at 0x10009810 are not a prologue (ldrh/strb), so no new function was created."
+    }
+  },
+  "tables": [
+    {
+      "address": "0x10009810",
+      "size": 124,
+      "label": "g_abCompressedRwImage",
+      "element_type": "byte[124]",
+      "purpose": "ARM Compiler compressed .data image. Scatterload record {src=0x10009810, dest=0x2000243C, size=0x404, handler=0x1000584E} at 0x100073B0 is walked by RunScatterLoadInitTable. Handler is nibble RLE (low nibble literals, high nibble zero-fill); 123 source bytes expand to 1028 SRAM bytes. After expand: VADC/SHS cal object at 0x200024B4 (ushort 0x1770 plus SHS0 0x480340E0/0x480340E4), hall-sector PWM uint16 maps used by ApplyHallSectorPwmPattern at 0x200024DC (fwd) and 0x200024E8 (rev), hall-state remap used by LookupHallCommutationAngle at 0x2000250A. Ride PAS/speed/wheel cells in this SRAM span start at 0 and are written later by InitializeRideDefaults. Not a sine LUT, wheel-mm LUT, or UART string table.",
+      "xrefs": [
+        "0x100073B0",
+        "0x10001054"
+      ]
+    },
+    {
+      "address": "0x1000F000",
+      "size": 256,
+      "label": "g_abFlashRideNvmPage",
+      "element_type": "byte[256]",
+      "purpose": "Ride NVM flash page. RunRideControlLoop loads r0=0x1000F000 and calls CopyBytesFromSourcePointer, which copies 255 bytes into SRAM 0x2000296C and stores the source cursor at ride-state+0x34. The next instruction compares dest[0] to 0xA9; stock image is erased 0xFF so the magic fails and RAM defaults remain. No other flash pointer into 0x1000F000-0x10010FFF exists. Remainder of this 4 KB (0x1000F100-0x10010FFF) is erased and unreferenced.",
+      "xrefs": [
+        "0x10003142",
+        "0x10003488"
+      ]
+    },
+    {
+      "address": "0x1000988C",
+      "size": 22388,
+      "label": null,
+      "element_type": "byte",
+      "purpose": "Erased 0xFF gap through 0x1000EFFF. Scatterload record at 0x100073C0 is ZEROINIT of SRAM 0x20002840 size 0x9D0 via handler 0x1000108C; the listed src address is unused. No strings, no LUTs, no code pointers. Auto-created DAT_10009a10/DAT_10009ba8 in this hole were 0xFF with only intra-data fake xrefs and were not named.",
+      "xrefs": [
+        "0x100073C0"
+      ]
+    }
+  ],
+  "not_in_range": {
+    "sine_foc_angle_table": "Q15 sine / hall-angle words live in the midflash .data load image (e.g. literal 0x1000722C used by LookupHallCommutationAngle), not after 0x10009810.",
+    "wheel_size_mm_table": "UpdateWheelSpeedPeriod computes period from wheel-size code 6-34 and a scale literal; no circumference LUT in this tail.",
+    "uart_strings": "list_strings total=0 for the whole program; no ASCII protocol strings in 0x10009810+.",
+    "assist_percent_maps": "PAS percents 30/50/70/85/100 are immediates in ApplyAssistLevelTargets, not flash tables here."
+  },
+  "new_functions": [],
+  "named_globals": [
+    {
+      "address": "0x10009810",
+      "name": "g_abCompressedRwImage",
+      "type": "byte[124]",
+      "previous": "DAT_10009810 / overlapping DAT_10009870",
+      "proof": "Scatterload src word at 0x100073B0; RunScatterLoadInitTable (0x10001034) walks that table; decompress at 0x1000584E yields hall/VADC objects at the documented SRAM addresses."
+    },
+    {
+      "address": "0x1000F000",
+      "name": "g_abFlashRideNvmPage",
+      "type": "byte[256]",
+      "previous": null,
+      "proof": "Literal 0x1000F000 at 0x10003488; RunRideControlLoop 0x10003142 passes it to CopyBytesFromSourcePointer; dest 0x2000296C compared to 0xA9."
+    }
+  ]
+}

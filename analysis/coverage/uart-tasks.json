@@ -1,0 +1,209 @@
+{
+  "agent": "uart-tasks",
+  "functions": [
+    {
+      "address": "0x1000756c",
+      "old_name": "FUN_1000756c",
+      "new_name": "CalculateFocParkInverseSvm",
+      "purpose": "FOC Park: index 1024-entry sine table at 0x100067DC from electrical angle>>6, form sin/cos (+256 = 90deg), Park Id/Iq, run d/q PI, inverse Park to Vα/Vβ, then SVM. Not UART.",
+      "variables_total": 9,
+      "variables_renamed": 9,
+      "immediates": [
+        {"addr": "0x10007578", "value": ">>6", "meaning": "electrical angle to 10-bit sine-table index"},
+        {"addr": "0x10007582", "value": "0x100", "meaning": "90deg table offset (256 of 1024)"},
+        {"addr": "0x10007674", "value": "0x3FF", "meaning": "1023 last sine-table index before wrap"},
+        {"addr": "0x10007660", "value": "0x100067DC", "meaning": "flash sine table base (1024 int16)"},
+        {"addr": "0x10007670", "value": "0xBB8", "meaning": "3000 Iq PI limit (field-weakening ramp)"}
+      ]
+    },
+    {
+      "address": "0x1000767c",
+      "old_name": "FUN_1000767c",
+      "new_name": "InitializeFocPiControllers",
+      "purpose": "Zero and load Kp/Ki/limits for the packed FOC PI block at 0x200028AC (Id, Iq, and two more controllers). Last block out_max=32000.",
+      "variables_total": 5,
+      "variables_renamed": 5,
+      "immediates": [
+        {"addr": "0x1000774c", "value": "0x7FF", "meaning": "2047 signed PI output limit copied to ±out_max"},
+        {"addr": "0x100076ec", "value": "0x7D00", "meaning": "32000 (movs 0x7D, lsls #8) last PI out_max"}
+      ]
+    },
+    {
+      "address": "0x100076f6",
+      "old_name": "FUN_100076f6",
+      "new_name": "UpdateFixedPointPiOutput",
+      "purpose": "Q12 PI: error=ref-meas, P=err*Kp>>12, I+=err*Ki>>12, sat to [min,max] with I back-calc. Struct: [0]ref [1]meas [2]err [4]out [6]P [10]I [0xD]Kp [0xE]Ki [0x11]max [0x12]min [0x13]sat.",
+      "variables_total": 4,
+      "variables_renamed": 4,
+      "immediates": [
+        {"addr": "0x10007706", "value": ">>12", "meaning": "Q12 PI gain shift"}
+      ]
+    },
+    {
+      "address": "0x10007764",
+      "old_name": "FUN_10007764",
+      "new_name": "LoadEqualPhasePwmDuties",
+      "purpose": "Idle SVM: period+1 then >>1 into all three phase compare slots (50% duty / neutral).",
+      "variables_total": 2,
+      "variables_renamed": 2,
+      "immediates": [
+        {"addr": "0x10007764", "value": ">>1", "meaning": "half-period equal duty on U/V/W"}
+      ]
+    },
+    {
+      "address": "0x1000777a",
+      "old_name": "FUN_1000777a",
+      "new_name": "ComputeSpaceVectorPwmDuties",
+      "purpose": "SVM: X=β, Y=(√3·α-β)/2, Z=-(√3·α+β)/2 with 0xDDB2≈√3·Q15; sector bits 1/2/4; MATH unsigned divide on overmod; jumptable sorts Ta/Tb/Tc. Q14 0x4000 = 1.0 when not overmodulating.",
+      "variables_total": 16,
+      "variables_renamed": 16,
+      "immediates": [
+        {"addr": "0x10007908", "value": "0xDDB2", "meaning": "√3·32768 Clarke/SVM scale"},
+        {"addr": "0x1000777a", "value": "1/2/4", "meaning": "SVM sector sign bits (sum 1..6)"},
+        {"addr": "0x10007910", "value": "0x20000000", "meaning": "overmodulation status flag set/cleared"},
+        {"addr": "0x10007914", "value": "0x40030000", "meaning": "XMC MATH base (inline DIV DVD/DVS/QUOT)"},
+        {"addr": "0x1000777a", "value": "0x4000", "meaning": "Q14 1.0 duty scale when t1+t2 <= period"}
+      ]
+    },
+    {
+      "address": "0x10007938",
+      "old_name": "FUN_10007938",
+      "new_name": "CalculateMathUnsignedDivide",
+      "purpose": "Blocking XMC MATH integer divide: DVD+0x20, DVS+0x24, DIVCON|=5 (ST|USIGN), wait DIVST bit0, return QUOT low 16.",
+      "variables_total": 3,
+      "variables_renamed": 3,
+      "immediates": [
+        {"addr": "0x100079d8", "value": "0x40030000", "meaning": "MATH peripheral base"},
+        {"addr": "0x10007940", "value": "5", "meaning": "DIVCON ST|USIGN start unsigned divide"}
+      ]
+    },
+    {
+      "address": "0x10007974",
+      "old_name": "FUN_10007974",
+      "new_name": "CalculateMathCordicRotation",
+      "purpose": "MATH CORDIC: CON=0x62, CORDX=0, CORDY=y<<8, CORDZ=z<<8, wait STATC.bit0; *resultScaledZ = 0xDDB2*(CORRZ>>8)>>15 (√3), *resultX = CORRX>>16.",
+      "variables_total": 6,
+      "variables_renamed": 6,
+      "immediates": [
+        {"addr": "0x10007978", "value": "0x62", "meaning": "MATH CORDIC CON (circular rotation + MPS)"},
+        {"addr": "0x10007982", "value": "<<8", "meaning": "CORDY/CORDZ operand scale"},
+        {"addr": "0x100079dc", "value": "0xDDB2", "meaning": "√3·32768 scale on CORRZ"}
+      ]
+    },
+    {
+      "address": "0x10007ae0",
+      "old_name": "FUN_10007ae0",
+      "new_name": "CalculateTwoShuntPhaseCurrents",
+      "purpose": "Reconstruct Ia/Ib/Ic from two shunts using SVM sector 2 or 3 (and 1/5 correction); 12-bit VADC (0xFFF)*16; 8-sample mean >>3 of a related ADC.",
+      "variables_total": 9,
+      "variables_renamed": 9,
+      "immediates": [
+        {"addr": "0x10007ae0", "value": "2/3/1/5", "meaning": "SVM sectors for two-shunt reconstruct"},
+        {"addr": "0x10007ae0", "value": "0xFFF", "meaning": "12-bit ADC mask then *16 left-align"},
+        {"addr": "0x10007ae0", "value": "8", "meaning": "running average window; result >>3"}
+      ]
+    },
+    {
+      "address": "0x10007bfc",
+      "old_name": "FUN_10007bfc",
+      "new_name": "WritePwmComparesAdcQueue",
+      "purpose": "Write 3-phase CCU8 CRS/+0x44 at 0x50000100/200/300; (slice+0x40)<<22 yields CCU80 0x50000000 GCSS|=0x1111; refill both VADC queues 0x83,4,1,6,7,5 (0x83=RF|ch3).",
+      "variables_total": 4,
+      "variables_renamed": 4,
+      "immediates": [
+        {"addr": "0x10007c50", "value": "0x50000100", "meaning": "CCU8 slice0 compare (CRS 0x3C / +0x44)"},
+        {"addr": "0x10007c54", "value": "0x50000200", "meaning": "CCU8 slice1 compare"},
+        {"addr": "0x10007c58", "value": "0x50000300", "meaning": "CCU8 slice2 compare"},
+        {"addr": "0x10007c5c", "value": "0x1111", "meaning": "CCU80.GCSS shadow-transfer enable all slices"},
+        {"addr": "0x10007c28", "value": "0x83", "meaning": "VADC QINR RF|channel 3, then ch 4,1,6,7,5"},
+        {"addr": "0x10007c60", "value": "0x48030900", "meaning": "VADC group1 queue-like register base"},
+        {"addr": "0x10007c64", "value": "0x48030500", "meaning": "VADC group0 queue-like register base"}
+      ]
+    },
+    {
+      "address": "0x10007c68",
+      "old_name": "FUN_10007c68",
+      "new_name": "CheckMotorIdleTimeout",
+      "purpose": "If motor requested and status bits match, and idle counter > 6000 FOC ticks, call EnableMotorPwmOutput and clear state+0xE.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": [
+        {"addr": "0x1000805c", "value": "0x1770", "meaning": "6000 FOC-ISR idle ticks before enable/restart"}
+      ]
+    },
+    {
+      "address": "0x10007cb2",
+      "old_name": "FUN_10007cb2",
+      "new_name": "ProcessFocCurrentControlIsr",
+      "purpose": "Main current-loop ISR: idle path increments counter (cap 16000) and commits PWM; else reconstruct currents, speed PI every 16 ticks, clamp Iq using UART PAS 0–6 at 0x20002706 and 0xAA config magic, Park/SVM, write PWM, poke 0x8000 + CCU bit2.",
+      "variables_total": 12,
+      "variables_renamed": 12,
+      "immediates": [
+        {"addr": "0x10007cf2", "value": "0x10", "meaning": "16-tick outer PI period"},
+        {"addr": "0x10007cfc", "value": "1000", "meaning": "0x7D<<3 ride-time cap"},
+        {"addr": "0x10007d34", "value": "0x4D8", "meaning": "1240 (0x9B<<3) subtracted vs DAT_10008084=0x939"},
+        {"addr": "0x10007d52", "value": "6", "meaning": "PAS/assist walk level (UART 0x59 path writes 0x20002706)"},
+        {"addr": "0x10007d60", "value": "0xAA", "meaning": "config magic byte at *(DAT_1000808c+4); not 0x59 start-byte"},
+        {"addr": "0x10007e5e", "value": "16000", "meaning": "0x7D<<7 idle-counter cap"},
+        {"addr": "0x10007e40", "value": "0x3D", "meaning": "61 subtracted from 0x939 when motor requested"},
+        {"addr": "0x10007e7e", "value": "0x8000", "meaning": "end-of-ISR trigger write"},
+        {"addr": "0x10007e88", "value": "2", "meaning": "CCU/timer +0x30 bit1 set (shadow/IRQ ack)"}
+      ]
+    },
+    {
+      "address": "0x10007eae",
+      "old_name": "FUN_10007eae",
+      "new_name": "UpdateTorqueAdcOffset",
+      "purpose": "Learn torque-ADC offset: average ~1536 samples (0x5F0/0x601), valid if mean>10 (flag bit0). Track drift; drop>80 for 100 ticks resets offset. Flag bit2 if ADC<0xF5 after warmup or <(3000-0x85) during learn. Neighbor UpdateTorqueSensorState is plausibility only.",
+      "variables_total": 11,
+      "variables_renamed": 11,
+      "immediates": [
+        {"addr": "0x10007ee8", "value": "0x5F0", "meaning": "1520 (0x5F<<4) still-learning sample count"},
+        {"addr": "0x100080c0", "value": "0x601", "meaning": "1537 samples then offset = sum>>4"},
+        {"addr": "0x10007f14", "value": "10", "meaning": "min learned offset to set valid flag bit0"},
+        {"addr": "0x10007f58", "value": "9..0x50", "meaning": "stable window: (*delta-9)<0x47 and step<8"},
+        {"addr": "0x10007f8a", "value": "0x50", "meaning": "offset drop >80 ADC counts"},
+        {"addr": "0x10007f90", "value": "100", "meaning": "persist 100 ticks then relearn offset"},
+        {"addr": "0x10007fb0", "value": "0xF5", "meaning": "245 low-ADC fault after warmup"},
+        {"addr": "0x10007fbe", "value": "0x85", "meaning": "133; compare ADC vs (3000-0x85) during learn"},
+        {"addr": "0x10007fc6", "value": "4", "meaning": "sensor flag bit2 (torque ADC fault)"}
+      ]
+    },
+    {
+      "address": "0x10007fd0",
+      "old_name": "FUN_10007fd0",
+      "new_name": "CalculateTorqueAssistCurrent",
+      "purpose": "If offset valid and (ADC > offset+163 or other) and PAS!=0: torque=(delta*3/8) or 5, slew-limit, clamp 5..0xBCF, currentDemand=gain*slewed (min 300). Sets flag bit3 (8). Writes 0x20002718 used as FOC Iq clamp.",
+      "variables_total": 10,
+      "variables_renamed": 10,
+      "immediates": [
+        {"addr": "0x10007ff0", "value": "0xA3", "meaning": "163 ADC deadzone above learned offset"},
+        {"addr": "0x10008008", "value": "0x1E", "meaning": "30-tick alternate engage path"},
+        {"addr": "0x1000801c", "value": "3/8", "meaning": "(delta>>2)+(delta>>3) torque scale"},
+        {"addr": "0x10008014", "value": "5", "meaning": "minimum torque delta and slewed floor"},
+        {"addr": "0x1000812a", "value": "300", "meaning": "0xFF+0x2D minimum current demand"},
+        {"addr": "0x100084fc", "value": "0xBCF", "meaning": "3023 slewed-torque ceiling"},
+        {"addr": "0x10008134", "value": "8", "meaning": "sensor flag bit3 torque-assist active"},
+        {"addr": "0x10008150", "value": "0xF7", "meaning": "clear bit3 when assist dropped"}
+      ]
+    },
+    {
+      "address": "0x1000815c",
+      "old_name": "FUN_1000815c",
+      "new_name": "UpdatePasHallPulseTiming",
+      "purpose": "Digital PAS: P0_IN bits 0x20 and 0x2000, edge debounce, high/low pulse widths, period at +0x48/+0x4A, set status 0x800. Timeout 1000 / 1500. Every 50 ticks snapshot another ADC. Cadence for FOC; UART 0x59 PAS level is consumed in ProcessFocCurrentControlIsr.",
+      "variables_total": 7,
+      "variables_renamed": 7,
+      "immediates": [
+        {"addr": "0x10008510", "value": "0x40040000", "meaning": "PORT0 base; +0x24 is P0_IN"},
+        {"addr": "0x10008162", "value": "0x20", "meaning": "P0.5 PAS hall A"},
+        {"addr": "0x1000817a", "value": "0x2000", "meaning": "P0.13 PAS hall B (1<<13)"},
+        {"addr": "0x10008192", "value": "0x800", "meaning": "status word+4 PAS-valid bit"},
+        {"addr": "0x100081a0", "value": "1000", "meaning": "0x7D<<3 stuck-level timeout"},
+        {"addr": "0x1000851c", "value": "0x5DC", "meaning": "1500 pulse-width timeout"},
+        {"addr": "0x1000828c", "value": "0x32", "meaning": "50-tick subsample for secondary ADC delta"},
+        {"addr": "0x10008204", "value": "0x17", "meaning": "0xBCF-0x17 default period when first pulse"}
+      ]
+    }
+  ]
+}

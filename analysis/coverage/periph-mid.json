@@ -1,0 +1,144 @@
+{
+  "agent": "periph-mid",
+  "functions": [
+    {
+      "address": "0x10001558",
+      "old_name": "FUN_10001558",
+      "new_name": "ProcessVadcShsCalibration",
+      "purpose": "XMC VADC sample-and-hold startup calibration: enable SHS cal bits, kick 9 SHS steps per outer loop, wait on status MSB, then clear BRS/CHCTR.",
+      "variables_total": 8,
+      "variables_renamed": 8,
+      "immediates": [
+        {"addr": "0x10001560", "value": "0x3f000000", "meaning": "SHS CALCTR analog-converter enable mask (0x3f << 24) at SHS+0xBC"},
+        {"addr": "0x1000156a", "value": "0x1", "meaning": "Start background request source / BRSCTRL run bit"},
+        {"addr": "0x10001574", "value": "0x100000", "meaning": "VADC G0 CHCTR0 bit 20 (result/sync config) during cal"},
+        {"addr": "0x100015b2", "value": "0x9", "meaning": "Nine SHS calibration steps per outer iteration"},
+        {"addr": "0x100015b8", "value": "0x8000", "meaning": "SHS/VADC calibration kick bit written to RAM-held register"}
+      ]
+    },
+    {
+      "address": "0x100015e2",
+      "old_name": "FUN_100015e2",
+      "new_name": "InitializeVadcConverter",
+      "purpose": "Ungate VADC clock via SCU PASSWD/CGATCLR0, program GLOBCFG and both VADC groups (queue, CHCTR, class), run SHS calibration, then enable NVIC IRQ 19 (VADC0_G0). Two mux layouts keyed off RAM flag 0x200025cc.",
+      "variables_total": 10,
+      "variables_renamed": 10,
+      "immediates": [
+        {"addr": "0x100015e6", "value": "0xc0", "meaning": "SCU_GENERAL.PASSWD disable write-protect"},
+        {"addr": "0x100015ee", "value": "0x1", "meaning": "SCU_CLK clock-gate clear bit 0 = VADC"},
+        {"addr": "0x100015f4", "value": "0xc3", "meaning": "SCU_GENERAL.PASSWD re-enable write-protect"},
+        {"addr": "0x10001620", "value": "0x3", "meaning": "VADC group QCTRL0 source/result setup"},
+        {"addr": "0x1000162e", "value": "0x4000000", "meaning": "VADC QMR0 bit 26 (flush/gate) after QCTRL write"},
+        {"addr": "0x1000165c", "value": "0x98", "meaning": "SHS step/timing config written before calibration"},
+        {"addr": "0x10001808", "value": "0x13", "meaning": "NVIC IRQ 19 = VADC0_G0 (priority 3 then ISER enable)"}
+      ]
+    },
+    {
+      "address": "0x100018dc",
+      "old_name": "FUN_100018dc",
+      "new_name": "EnableNvicIrqMask",
+      "purpose": "CMSIS-style NVIC_EnableIRQ: if irqNumber >= 0, write 1<<(irq&31) to NVIC ISER (0xE000E100). Used by VADC init.",
+      "variables_total": 1,
+      "variables_renamed": 1,
+      "immediates": [
+        {"addr": "0x100018dc", "value": "0x0", "meaning": "Skip NVIC ISER for negative (system-handler) IRQn"},
+        {"addr": "0x100018e4", "value": "0x1", "meaning": "ISER set-enable bit before shift by irq index"}
+      ]
+    },
+    {
+      "address": "0x10001954",
+      "old_name": "FUN_10001954",
+      "new_name": "SetNvicIrqPriority",
+      "purpose": "CMSIS NVIC_SetPriority: 2-bit priority in bits 7:6 of the IPR/SHPR byte. Peripheral IRQs via NVIC IPR 0xE000E400; negative IRQn via SCB SHPR 0xE000ED00+0x1C.",
+      "variables_total": 6,
+      "variables_renamed": 6,
+      "immediates": [
+        {"addr": "0x10001956", "value": "0xff", "meaning": "Full priority byte mask before shift into IPR word"},
+        {"addr": "0x1000195c", "value": "0x6", "meaning": "priorityLevel<<6 for __NVIC_PRIO_BITS==2 (encoded as lsl 30 / lsr 24)"},
+        {"addr": "0x1000197c", "value": "0x8", "meaning": "System-handler index: (IRQn&0xF)-8 for SCB SHPR"},
+        {"addr": "0x10001986", "value": "0x1c", "meaning": "SCB SHPR2 offset from SCB base"}
+      ]
+    },
+    {
+      "address": "0x10001990",
+      "old_name": "FUN_10001990",
+      "new_name": "InitializeCcu8Pwm",
+      "purpose": "Ungate CCU8, configure four CCU80 slices (INS/CMC/TC/PR/CR/CR2) from RAM timing, enable CCU80_0/1 IRQs 25–26, start timers via GIDLC/GCSS, map P0.0–P0.3/P0.8–P0.9 to CCU8 ALT5/ALT7.",
+      "variables_total": 7,
+      "variables_renamed": 7,
+      "immediates": [
+        {"addr": "0x10001994", "value": "0xc0", "meaning": "SCU_GENERAL.PASSWD disable write-protect"},
+        {"addr": "0x1000199c", "value": "0x2", "meaning": "SCU_CLK clock-gate clear bit 1 = CCU8"},
+        {"addr": "0x100019a6", "value": "0xc3", "meaning": "SCU_GENERAL.PASSWD re-enable write-protect"},
+        {"addr": "0x100019b0", "value": "0x100", "meaning": "CCU80 GIDLC.CPRB clear prescaler idle (0x5000000C)"},
+        {"addr": "0x100019d2", "value": "0x6000000", "meaning": "CCU8 slice TC extra timer-control bits"},
+        {"addr": "0x10001b12", "value": "0x19", "meaning": "NVIC IRQ 25 = CCU80_0, priority 1"},
+        {"addr": "0x10001b20", "value": "0x1a", "meaning": "NVIC IRQ 26 = CCU80_1, priority 0"},
+        {"addr": "0x10001b44", "value": "0xf", "meaning": "CCU80 GIDLC start slices 0–3"},
+        {"addr": "0x10001b70", "value": "0xa8", "meaning": "PORT0 IOCR PCx 0xA8 = push-pull ALT5 (CCU8 PWM)"}
+      ]
+    },
+    {
+      "address": "0x10001be0",
+      "old_name": "FUN_10001be0",
+      "new_name": "EnableNvicIrqLine",
+      "purpose": "Second compilation-unit copy of NVIC_EnableIRQ (ISER 0xE000E100). Used by CCU8 PWM init for IRQs 25 and 26.",
+      "variables_total": 1,
+      "variables_renamed": 1,
+      "immediates": [
+        {"addr": "0x10001be0", "value": "0x0", "meaning": "Skip NVIC ISER for negative IRQn"},
+        {"addr": "0x10001be8", "value": "0x1", "meaning": "ISER set-enable bit before shift by irq index"}
+      ]
+    },
+    {
+      "address": "0x10001c40",
+      "old_name": "FUN_10001c40",
+      "new_name": "InitializeCcu4Timers",
+      "purpose": "Ungate CCU4, program four CCU40 slices (period/compare/prescaler), P1.3 ALT2, set CCU40_0 IRQ 21 priority 0x80, clear pending and enable ISER, then GIDLC/GCSS start.",
+      "variables_total": 7,
+      "variables_renamed": 7,
+      "immediates": [
+        {"addr": "0x10001c44", "value": "0xc0", "meaning": "SCU_GENERAL.PASSWD disable write-protect"},
+        {"addr": "0x10001c4c", "value": "0x4", "meaning": "SCU_CLK clock-gate clear bit 2 = CCU4"},
+        {"addr": "0x10001c56", "value": "0xc3", "meaning": "SCU_GENERAL.PASSWD re-enable write-protect"},
+        {"addr": "0x10001c8e", "value": "0x3c", "meaning": "CCU4 slice 0 period register (PRS) = 60"},
+        {"addr": "0x10001c92", "value": "0x32", "meaning": "CCU4 slice 0 compare shadow (CRS) = 50"},
+        {"addr": "0x10001d18", "value": "0xa0", "meaning": "CCU4 slice 3 compare-related OR mask"},
+        {"addr": "0x10001d30", "value": "0x90000000", "meaning": "PORT1 IOCR0 P1.3 = 0x90 push-pull ALT2"},
+        {"addr": "0x10001d56", "value": "0x8000", "meaning": "NVIC IPR5 byte for IRQ 21 (CCU40_0) priority 0x80"},
+        {"addr": "0x10001d5e", "value": "0x200000", "meaning": "1<<21 written to ICPR then ISER for CCU40_0"}
+      ]
+    },
+    {
+      "address": "0x10001e08",
+      "old_name": "FUN_10001e08",
+      "new_name": "InitializeGpioPortModes",
+      "purpose": "Program PORT1 IOCR (P1.0–1 pulldown in, P1.2/4/5 push-pull out) and PORT0 IOCR (PWM pins tristate until CCU8 maps them; P0.4/5/10/12/13 pull-up in). Wait until P0.12 reads high.",
+      "variables_total": 1,
+      "variables_renamed": 1,
+      "immediates": [
+        {"addr": "0x10001e1a", "value": "0x80000", "meaning": "PORT1 IOCR0 P1.2 = 0x80 push-pull GPIO output"},
+        {"addr": "0x10001e30", "value": "0x8", "meaning": "PORT1 IOCR0 P1.0 = 0x08 pull-down input"},
+        {"addr": "0x10001e40", "value": "0x80", "meaning": "PORT1 IOCR4 P1.4 = 0x80 push-pull output"},
+        {"addr": "0x10001e6e", "value": "0x10", "meaning": "PORT0 IOCR4 P0.4 = 0x10 pull-up input"},
+        {"addr": "0x10001e86", "value": "0x1000", "meaning": "PORT0 IOCR12 P0.13 = 0x10 pull-up input"},
+        {"addr": "0x10001ed6", "value": "0x10", "meaning": "PORT0 IOCR12 P0.12 = 0x10 pull-up input"},
+        {"addr": "0x10001ee8", "value": "0x0", "meaning": "Spin while PORT0.IN bit 12 (P0.12) is still low"}
+      ]
+    },
+    {
+      "address": "0x10001eee",
+      "old_name": "FUN_10001eee",
+      "new_name": "ReadRawDigitalInputPin",
+      "purpose": "Active-low sample of PORT0.IN bit 10 (P0.10): returns 1 if pin is grounded, 0 if high. Raw input for DebounceDigitalInput.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": [
+        {"addr": "0x10001ef0", "value": "0x24", "meaning": "XMC PORT IN register offset"},
+        {"addr": "0x10001ef4", "value": "0x400", "meaning": "PORT0.IN bit 10 = P0.10"},
+        {"addr": "0x10001efc", "value": "0x0", "meaning": "Return 0 when P0.10 is high (inactive)"},
+        {"addr": "0x10001f00", "value": "0x1", "meaning": "Return 1 when P0.10 is low (asserted)"}
+      ]
+    }
+  ]
+}

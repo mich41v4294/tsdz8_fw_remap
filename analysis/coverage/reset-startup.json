@@ -1,0 +1,178 @@
+{
+  "agent": "reset-startup",
+  "program": "original firmware thonghsheng.hex",
+  "exclusive_ranges": [
+    "0x10001000-0x10001033",
+    "0x100039F2-0x10003AAF"
+  ],
+  "vector_table": {
+    "base": "0x10001000",
+    "bytes": 52,
+    "note": "Flash origin is a 44-byte Cortex-M / Infineon header (typed CortexMBootVectorHeader as g_sBootVectorHeader) then 8 bytes of InitializeCRuntimeEntry. Only SP and Reset are live Thumb vectors. NMI and HardFault are 0. There is no SVCall/PendSV/SysTick/IRQ pointer in this header; those slots are metadata then code. XMC1302 has 16 system + 32 IRQ = 48 vector words; HandleResetStartup fills that many slots in SRAM at 0x20000000.",
+    "entries": [
+      {"offset": "0x00", "name": "InitialSP", "raw": "0x20003210", "thumb": false, "handler": null, "meaning": "MSP top (SRAM). Same value as g_dwInitialStackPointer / GetUserStackHeapBounds stack top."},
+      {"offset": "0x04", "name": "Reset", "raw": "0x10003A85", "thumb": true, "handler": "HandleResetStartup", "handler_addr": "0x10003A84", "meaning": "Cortex-M Reset|1"},
+      {"offset": "0x08", "name": "NMI", "raw": "0x00000000", "thumb": false, "handler": null, "meaning": "Unused. Template stub HandleNmiInterrupt @ 0x10003AA4 is not referenced."},
+      {"offset": "0x0C", "name": "HardFault", "raw": "0x00000000", "thumb": false, "handler": null, "meaning": "Unused. Template stub HandleHardFault @ 0x10003AA6 is not referenced."},
+      {"offset": "0x10", "name": "ReservedOrMeta0", "raw": "0x80000000", "thumb": false, "handler": null, "meaning": "Not a flash Thumb pointer (would be MemManage on M3; unused on M0)."},
+      {"offset": "0x14", "name": "ReservedOrMeta1", "raw": "0x80000000", "thumb": false, "handler": null, "meaning": "Not a flash Thumb pointer (BusFault on M3; unused on M0)."},
+      {"offset": "0x18", "name": "HeaderMagicOrCrc", "raw": "0xE7461A76", "thumb": false, "handler": null, "meaning": "Not a code address; likely Infineon header CRC/magic."},
+      {"offset": "0x1C", "name": "Reserved2", "raw": "0x00000000", "thumb": false, "handler": null, "meaning": "Zero"},
+      {"offset": "0x20", "name": "CRuntimeAddr", "raw": "0x1000102C", "thumb": false, "handler": "InitializeCRuntimeEntry", "handler_addr": "0x1000102C", "meaning": "Even pointer to ARMCC __main (not Thumb-tagged). Reset jumps there via BX 0x1000102D."},
+      {"offset": "0x24", "name": "FlashChkEnd", "raw": "0x100073D0", "thumb": false, "handler": null, "meaning": "Flash pointer (checksum/range end). Bytes there are 00 00 00 00 then repeating 2F 48 FE E7."},
+      {"offset": "0x28", "name": "HeaderWord10", "raw": "0x00000004", "thumb": false, "handler": null, "meaning": "Small constant (not an IRQ vector)."},
+      {"offset": "0x2C", "name": "InitializeCRuntimeEntry", "raw": "0xF802F000", "thumb": false, "handler": "InitializeCRuntimeEntry", "handler_addr": "0x1000102C", "meaning": "CODE not a vector: BL RunScatterLoadInitTable (00 F0 02 F8). Would be SVCall if this were a full table."},
+      {"offset": "0x30", "name": "InitializeCRuntimeEntry+4", "raw": "0xF83EF000", "thumb": false, "handler": "InitializeCRuntimeEntry", "handler_addr": "0x1000102C", "meaning": "CODE: BL InvokeMainAfterRuntimeInit (00 F0 3E F8). Function body ends 0x10001033; next function RunScatterLoadInitTable is owned by periph-low."}
+    ],
+    "irq_entries_in_flash_header": [],
+    "ram_vector_table": {
+      "base": "0x20000000",
+      "slot_count": 48,
+      "fill_word": "0xE7FEBF00",
+      "fill_source": "g_dwRamVectorFillWord @ 0x10003ACC (bytes 00 BF FE E7)",
+      "written_by": "HandleResetStartup"
+    }
+  },
+  "functions": [
+    {
+      "address": "0x1000102C",
+      "old_name": null,
+      "new_name": "InitializeCRuntimeEntry",
+      "created": true,
+      "body_end": "0x10001033",
+      "no_return": false,
+      "purpose": "ARMCC __main thunk: BL RunScatterLoadInitTable; BL InvokeMainAfterRuntimeInit. Reset BX-targets this. Decompiler inlines the following scatterload because the first BL lands on the next instruction (PIC LR trick); stored body is only 8 bytes. Locals in that decompilation belong to RunScatterLoadInitTable — not renamed here.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": [
+        {"addr": "0x1000102C", "value": "0x10001034", "meaning": "BL RunScatterLoadInitTable"},
+        {"addr": "0x10001030", "value": "0x100010B0", "meaning": "BL InvokeMainAfterRuntimeInit"}
+      ]
+    },
+    {
+      "address": "0x10003A84",
+      "old_name": null,
+      "new_name": "HandleResetStartup",
+      "created": true,
+      "body_end": "0x10003AA1",
+      "no_return": true,
+      "purpose": "Cortex-M Reset: LDR/MOV MSP=0x20003210 (decompiler omits as prologue), fill 48 words at 0x20000000 with g_dwRamVectorFillWord, BLX InitializeCmsisSystemCore, BLX InvokeEmptyLibcInit, BX InitializeCRuntimeEntry.",
+      "variables_total": 3,
+      "variables_renamed": 3,
+      "variables": [
+        {"old": "uVar1", "new": "ramVectorFillWord", "type": "uint"},
+        {"old": "iVar2", "new": "remainingVectorCount", "type": "int"},
+        {"old": "puVar3", "new": "ramVectorDest", "type": "uint *"}
+      ],
+      "immediates": [
+        {"addr": "0x10003A84", "value": "0x20003210", "meaning": "Initial MSP from g_dwInitialStackPointer"},
+        {"addr": "0x10003A8C", "value": "0x30", "meaning": "48 RAM vector slots (system + 32 IRQs)"},
+        {"addr": "0x10003AC8", "value": "0x20000000", "meaning": "RAM VTOR / vector dest g_pRamVectorTable"},
+        {"addr": "0x10003ACC", "value": "0xE7FEBF00", "meaning": "Fill pattern g_dwRamVectorFillWord"},
+        {"addr": "0x10003AD0", "value": "0x10003AED", "meaning": "g_pResetInitFnA -> InitializeCmsisSystemCore"},
+        {"addr": "0x10003AD4", "value": "0x10003AB1", "meaning": "g_pResetInitFnB -> InvokeEmptyLibcInit"},
+        {"addr": "0x10003AD8", "value": "0x1000102D", "meaning": "g_pCRuntimeEntry -> InitializeCRuntimeEntry"}
+      ]
+    },
+    {
+      "address": "0x10003AA4",
+      "old_name": null,
+      "new_name": "HandleNmiInterrupt",
+      "created": true,
+      "body_end": "0x10003AA5",
+      "no_return": true,
+      "purpose": "CMSIS-order NMI lockup (B .). Flash NMI vector is 0; no Thumb pointer to 0x10003AA5 in the image.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": []
+    },
+    {
+      "address": "0x10003AA6",
+      "old_name": null,
+      "new_name": "HandleHardFault",
+      "created": true,
+      "body_end": "0x10003AA7",
+      "no_return": true,
+      "purpose": "CMSIS-order HardFault lockup (B .). Flash HardFault vector is 0; no Thumb pointer to 0x10003AA7 in the image.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": []
+    },
+    {
+      "address": "0x10003AA8",
+      "old_name": null,
+      "new_name": "HandleSvcInterrupt",
+      "created": true,
+      "body_end": "0x10003AA9",
+      "no_return": true,
+      "purpose": "CMSIS-order SVCall lockup (B .). Not present in the 13-word flash header.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": []
+    },
+    {
+      "address": "0x10003AAA",
+      "old_name": null,
+      "new_name": "HandlePendSvInterrupt",
+      "created": true,
+      "body_end": "0x10003AAB",
+      "no_return": true,
+      "purpose": "CMSIS-order PendSV lockup (B .). Not present in the 13-word flash header.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": []
+    },
+    {
+      "address": "0x10003AAC",
+      "old_name": null,
+      "new_name": "HandleSysTickInterrupt",
+      "created": true,
+      "body_end": "0x10003AAD",
+      "no_return": true,
+      "purpose": "CMSIS-order SysTick lockup (B .). Not present in the 13-word flash header.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": []
+    },
+    {
+      "address": "0x10003AAE",
+      "old_name": null,
+      "new_name": "HandleDefaultIrq",
+      "created": true,
+      "body_end": "0x10003AAF",
+      "no_return": true,
+      "purpose": "CMSIS Default_Handler lockup (B .). Last of six consecutive B . after Reset. IRQs are not in the flash header.",
+      "variables_total": 0,
+      "variables_renamed": 0,
+      "immediates": []
+    }
+  ],
+  "globals_named": [
+    {"address": "0x10001000", "name": "g_sBootVectorHeader", "type": "CortexMBootVectorHeader", "size": 44},
+    {"address": "0x100039F4", "name": "g_adwMotorScaleConstPool", "type": "uint32_t[36]", "size": 144, "note": "Orphaned pool after ComputeMotorScaleTables (body_end 0x100039F1). Mix of floats and RAM pointers (first dword 0x200025CC)."},
+    {"address": "0x10003AC4", "name": "g_dwInitialStackPointer", "type": "uint32_t", "value": "0x20003210"},
+    {"address": "0x10003AC8", "name": "g_pRamVectorTable", "type": "uint32_t *", "value": "0x20000000"},
+    {"address": "0x10003ACC", "name": "g_dwRamVectorFillWord", "type": "uint32_t", "value": "0xE7FEBF00"},
+    {"address": "0x10003AD0", "name": "g_pResetInitFnA", "type": "void *", "value": "0x10003AED", "points_to": "InitializeCmsisSystemCore"},
+    {"address": "0x10003AD4", "name": "g_pResetInitFnB", "type": "void *", "value": "0x10003AB1", "points_to": "InvokeEmptyLibcInit"},
+    {"address": "0x10003AD8", "name": "g_pCRuntimeEntry", "type": "void *", "value": "0x1000102D", "points_to": "InitializeCRuntimeEntry"}
+  ],
+  "variable_coverage": {
+    "functions_in_scope": 8,
+    "functions_decompiled": 8,
+    "locals_total": 3,
+    "locals_renamed": 3,
+    "locals_pct": 100,
+    "note": "Only HandleResetStartup has decompiler locals. Six lockup stubs and the 8-byte __main thunk have none. InitializeCRuntimeEntry decompile listing leaks RunScatterLoadInitTable SSA names; those were left untouched (other agent owns 0x10001034+)."
+  },
+  "did_not_rename": [
+    "ComputeMotorScaleTables",
+    "InvokeEmptyLibcInit",
+    "HandlePllInitByStartup",
+    "GetUserStackHeapBounds",
+    "InitializeCmsisSystemCore",
+    "ComputeSysTickScale",
+    "RunScatterLoadInitTable",
+    "InvokeMainAfterRuntimeInit"
+  ]
+}
