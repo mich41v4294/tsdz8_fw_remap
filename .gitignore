@@ -1,6 +1,9 @@
 # Vendor firmware — keep local; do not publish
 *.hex
 
+# Local Ghidra coverage notes (not published)
+analysis/
+
 # Ghidra project database and machine lockfiles
 *.gpr
 *.rep/

@@ -15,11 +15,10 @@ It does **not** include vendor firmware or a Ghidra project. Flashing is the hos
 | [`start-webapp.bat`](start-webapp.bat) / [`start-webapp.ps1`](start-webapp.ps1) | Double-click Windows launchers (`npm install` + Vite on http://localhost:5173). |
 | [`jlink-flash.bat`](jlink-flash.bat) / [`jlink-flash.ps1`](jlink-flash.ps1) / [`jlink-flash.sh`](jlink-flash.sh) | Local-venv launchers for the J-Link CLI (menu if no args; otherwise pass-through). |
 | [`docker-compose.yml`](docker-compose.yml) | Homelab / Dockhand stack; builds [`webapp/Dockerfile`](webapp/Dockerfile) and serves on port 8080. |
-| [`analysis/coverage/`](analysis/coverage/) | Function-coverage notes from the reverse-engineering pass. |
 | [`firmware/`](firmware/) | How to supply your own stock dump (SHA-256, filename). |
 | [`tools/jlink_flasher/`](tools/jlink_flasher/) | pylink CLI: dump / flash / verify at `0x10001000`. |
 
-Not committed: `original firmware thonghsheng.hex`, `tsdz8_motor.gpr` / `.rep` (local Ghidra DB).
+Not committed: `original firmware thonghsheng.hex`, `tsdz8_motor.gpr` / `.rep` (local Ghidra DB), `analysis/` (coverage notes).
 
 ## Use
 
