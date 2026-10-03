@@ -162,4 +162,26 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.probe {
+  margin-top: 1.8rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 0.9rem 1rem 1.1rem;
+}
+
+.probe .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.probe .power {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.6rem 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 footer { margin-top: 2rem; }

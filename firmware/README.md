@@ -25,4 +25,13 @@ shasum -a 256 "original firmware thonghsheng.hex"
 
 The patcher also refuses to write if mapped stock bytes (UART `0x59`, 25 km/h ceiling, PAS percents, …) do not match. A matching hash without those bytes is still the wrong build.
 
-Flashing is out of band: J-Link / J-Flash at `0x10001000`.
+## Flash
+
+64 KB at `0x10001000`. Do not reflash the J-Link.
+
+```bash
+python3 -m pip install -r tools/jlink_flasher/requirements.txt
+python3 -m tools.jlink_flasher flash path/to-patched.hex
+```
+
+Or Connect / Flash in the webapp (desktop Chrome/Edge WebUSB). Close other J-Link apps first. Battery off, or do not supply 5 V on VTref. Details in [`../tools/jlink_flasher/README.md`](../tools/jlink_flasher/README.md).

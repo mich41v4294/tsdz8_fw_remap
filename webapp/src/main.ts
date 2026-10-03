@@ -9,13 +9,10 @@ import {
   type ParameterGroup,
   type ParameterSpec,
 } from "./parameterMap";
-import {
-  applyPatches,
-  buildDiff,
-  checkOriginalBytes,
-  defaultValues,
-  type ByteDiff,
-} from "./patcher";
+import { applyPatches, buildDiff, checkOriginalBytes, defaultValues, type ByteDiff } from "./patcher";
+import { FlashSession } from "./flash/session";
+import { FLASH_BASE, IMAGE_SIZE } from "./flash/constants";
+import { webUsbAvailable } from "./flash/jlinkUsb";
 import "./style.css";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -29,8 +26,10 @@ app.innerHTML = `
     <h1>TSDZ8 stock parameter patcher</h1>
     <p class="lede">
       Load the Tongsheng stock HEX, raise firmware ceilings, download a checksum-correct HEX.
-      The VD04 still chooses the live on-road / off-road speed. Flashing is up to you (J-Link at
-      <code>${parameterMap.firmware.flashBase}</code>).
+      The VD04 still chooses the live on-road / off-road speed. Flash from this page over WebUSB
+      (desktop Chrome/Edge, J-Link in stock firmware) at
+      <code>${parameterMap.firmware.flashBase}</code>, or use
+      <code>python -m tools.jlink_flasher</code>.
     </p>
     <div class="banner">
       <strong>Off-road / private property only.</strong>
@@ -48,6 +47,24 @@ app.innerHTML = `
     <p>
       <button id="download" type="button" disabled>Download patched HEX</button>
     </p>
+    <section class="probe" id="probe-panel">
+      <h2>J-Link</h2>
+      <p class="hint">
+        Native J-Link USB via WebUSB. Do not reflash the probe. Close J-Flash / JLinkExe first.
+        Battery off, or leave probe power unchecked (VTref sense only). Do not power from both.
+      </p>
+      <p class="actions">
+        <button id="connect" type="button">Connect J-Link</button>
+        <button id="flash" type="button" disabled>Flash patched image</button>
+        <button id="verify" type="button" disabled>Verify</button>
+        <button id="dump" type="button" disabled>Dump HEX</button>
+      </p>
+      <label class="power">
+        <input id="power" type="checkbox" />
+        Supply target power from the J-Link (off by default)
+      </label>
+      <div id="probe-status" class="status">No probe.</div>
+    </section>
     <footer>
       ${parameterMap.notes.map((n) => `<p>${n}</p>`).join("")}
       Mapped firmware: ${parameterMap.firmware.label}. Rider settings first; advanced FOC/protect immediates are collapsed below. UART 0x59 framing is locked.
@@ -60,6 +77,39 @@ const statusEl = app.querySelector<HTMLDivElement>("#status")!;
 const fieldsEl = app.querySelector<HTMLDivElement>("#fields")!;
 const diffEl = app.querySelector<HTMLDivElement>("#diff")!;
 const downloadBtn = app.querySelector<HTMLButtonElement>("#download")!;
+const connectBtn = app.querySelector<HTMLButtonElement>("#connect")!;
+const flashBtn = app.querySelector<HTMLButtonElement>("#flash")!;
+const verifyBtn = app.querySelector<HTMLButtonElement>("#verify")!;
+const dumpBtn = app.querySelector<HTMLButtonElement>("#dump")!;
+const powerBox = app.querySelector<HTMLInputElement>("#power")!;
+const probeStatusEl = app.querySelector<HTMLDivElement>("#probe-status")!;
+
+let session: FlashSession | null = null;
+
+function setProbeStatus(kind: "ok" | "bad" | "", text: string) {
+  probeStatusEl.className = `status ${kind}`;
+  probeStatusEl.textContent = text;
+}
+
+function patchedImage(): Uint8Array | null {
+  if (!loaded) return null;
+  return applyPatches(loaded.image, values).toFlatImage();
+}
+
+function syncProbeButtons() {
+  const hasUsb = webUsbAvailable();
+  connectBtn.disabled = !hasUsb;
+  const ready = Boolean(session) && Boolean(loaded);
+  flashBtn.disabled = !ready;
+  verifyBtn.disabled = !ready;
+  dumpBtn.disabled = !session;
+  if (!hasUsb) {
+    setProbeStatus(
+      "",
+      "WebUSB is not available in this browser. Use desktop Chrome/Edge, or python -m tools.jlink_flasher.",
+    );
+  }
+}
 
 function fmtBytes(bytes: number[]): string {
   return bytes.map((b) => b.toString(16).padStart(2, "0")).join(" ");
@@ -145,11 +195,13 @@ function renderDiff() {
   if (!loaded) {
     diffEl.innerHTML = "<p class='hint'>Load a HEX to preview patches.</p>";
     downloadBtn.disabled = true;
+    syncProbeButtons();
     return;
   }
   if (diffs.length === 0) {
     diffEl.innerHTML = "<p class='hint'>No changes from the stock immediates.</p>";
     downloadBtn.disabled = true;
+    syncProbeButtons();
     return;
   }
   diffEl.innerHTML = `
@@ -166,6 +218,7 @@ function renderDiff() {
     </table>
   `;
   downloadBtn.disabled = false;
+  syncProbeButtons();
 }
 
 function loadText(name: string, text: string) {
@@ -180,16 +233,19 @@ function loadText(name: string, text: string) {
         `${name} does not match this stock map at ${hexAddr(first.address)} (${first.id}). Expected ${fmtBytes(first.expected)}, found ${fmtBytes(first.actual)}.`,
       );
       renderDiff();
+      syncProbeButtons();
       return;
     }
     loaded = { name, image };
     setStatus("ok", `${name} matches ${parameterMap.firmware.id}. Ready to patch ceilings.`);
     renderDiff();
+    syncProbeButtons();
   } catch (err) {
     loaded = null;
     const message = err instanceof HexError || err instanceof Error ? err.message : String(err);
     setStatus("bad", message);
     renderDiff();
+    syncProbeButtons();
   }
 }
 
@@ -215,5 +271,81 @@ downloadBtn.addEventListener("click", () => {
   }
 });
 
+function errText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+connectBtn.addEventListener("click", async () => {
+  connectBtn.disabled = true;
+  try {
+    if (session) {
+      await session.close();
+      session = null;
+    }
+    session = await FlashSession.connect({
+      power: powerBox.checked,
+      status: (msg) => setProbeStatus("", msg),
+    });
+    setProbeStatus("ok", session.infoLine());
+  } catch (err) {
+    session = null;
+    setProbeStatus("bad", errText(err));
+  }
+  syncProbeButtons();
+});
+
+flashBtn.addEventListener("click", async () => {
+  if (!session) return;
+  const image = patchedImage();
+  if (!image) return;
+  const ok = window.confirm(
+    "Off-road / private property only. Flashing can make the bike illegal on public roads. Continue?",
+  );
+  if (!ok) return;
+  flashBtn.disabled = true;
+  try {
+    await session.flash(image, (msg) => setProbeStatus("", msg));
+    setProbeStatus("ok", `Flashed and verified ${IMAGE_SIZE} bytes at ${hexAddr(FLASH_BASE)}.`);
+  } catch (err) {
+    setProbeStatus("bad", errText(err));
+  }
+  syncProbeButtons();
+});
+
+verifyBtn.addEventListener("click", async () => {
+  if (!session) return;
+  const image = patchedImage();
+  if (!image) return;
+  verifyBtn.disabled = true;
+  try {
+    await session.verify(image);
+    setProbeStatus("ok", "Verify OK");
+  } catch (err) {
+    setProbeStatus("bad", errText(err));
+  }
+  syncProbeButtons();
+});
+
+dumpBtn.addEventListener("click", async () => {
+  if (!session) return;
+  dumpBtn.disabled = true;
+  try {
+    setProbeStatus("", "Reading flash…");
+    const data = await session.dumpFlash();
+    const hex = IntelHex.fromFlatImage(data).serialize();
+    const blob = new Blob([hex], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "tsdz8-dump.hex";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    setProbeStatus("ok", `Dumped ${IMAGE_SIZE} bytes.`);
+  } catch (err) {
+    setProbeStatus("bad", errText(err));
+  }
+  syncProbeButtons();
+});
+
 renderFields();
 renderDiff();
+syncProbeButtons();

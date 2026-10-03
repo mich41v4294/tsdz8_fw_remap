@@ -52,6 +52,10 @@ export function parseHexLine(line: string): HexRecord {
   return { raw: trimmed, length, address, type, data, checksum: recorded };
 }
 
+export const FLASH_BASE = 0x10001000;
+export const IMAGE_SIZE = 65536;
+export const RECORD_DATA_LEN = 32;
+
 export function formatRecord(record: Omit<HexRecord, "raw" | "checksum">): HexRecord {
   const payload = new Uint8Array(4 + record.data.length);
   payload[0] = record.data.length;
@@ -151,5 +155,78 @@ export class IntelHex {
       out.push(b);
     }
     return out;
+  }
+
+  toFlatImage(base = FLASH_BASE, size = IMAGE_SIZE): Uint8Array {
+    const image = new Uint8Array(size);
+    const seen = new Uint8Array(size);
+    let ela = 0;
+    for (const rec of this.records) {
+      if (rec.type === 4 && rec.data.length === 2) {
+        ela = ((rec.data[0] << 8) | rec.data[1]) << 16;
+        continue;
+      }
+      if (rec.type === 2 && rec.data.length === 2) {
+        ela = ((rec.data[0] << 8) | rec.data[1]) << 4;
+        continue;
+      }
+      if (rec.type !== 0) continue;
+      const start = ela + rec.address;
+      for (let i = 0; i < rec.data.length; i++) {
+        const absAddr = start + i;
+        if (absAddr < base || absAddr >= base + size) {
+          throw new HexError(
+            `HEX data at 0x${absAddr.toString(16)} is outside 0x${base.toString(16)}+${size}`,
+          );
+        }
+        const off = absAddr - base;
+        image[off] = rec.data[i];
+        seen[off] = 1;
+      }
+    }
+    for (let i = 0; i < size; i++) {
+      if (seen[i] === 0) {
+        throw new HexError(`HEX has holes in the flash window (first missing 0x${(base + i).toString(16)})`);
+      }
+    }
+    return image;
+  }
+
+  static fromFlatImage(
+    image: Uint8Array,
+    base = FLASH_BASE,
+    recLen = RECORD_DATA_LEN,
+  ): IntelHex {
+    const records: HexRecord[] = [];
+    let currentEla = -1;
+    let offset = 0;
+    while (offset < image.length) {
+      const absAddr = base + offset;
+      const ela = (absAddr >>> 16) & 0xffff;
+      const recAddr = absAddr & 0xffff;
+      if (ela !== currentEla) {
+        records.push(
+          formatRecord({
+            length: 2,
+            address: 0,
+            type: 4,
+            data: Uint8Array.from([(ela >> 8) & 0xff, ela & 0xff]),
+          }),
+        );
+        currentEla = ela;
+      }
+      const take = Math.min(recLen, image.length - offset, 0x10000 - recAddr);
+      records.push(
+        formatRecord({
+          length: take,
+          address: recAddr,
+          type: 0,
+          data: image.subarray(offset, offset + take),
+        }),
+      );
+      offset += take;
+    }
+    records.push(formatRecord({ length: 0, address: 0, type: 1, data: new Uint8Array() }));
+    return new IntelHex(records);
   }
 }
