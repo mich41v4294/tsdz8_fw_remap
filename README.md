@@ -1,6 +1,6 @@
 # TSDZ8 stock parameter patcher
 
-Browser tool and notes from a Ghidra pass over Tongsheng TSDZ8 stock motor firmware (Infineon XMC1xxx). It patches documented immediates (speed ceiling, PAS percents, walk target, FOC/stall/protect constants) and writes a checksum-correct Intel HEX. A compare view diffs two dumps and names mapped parameter changes. A hex view shows the full 64 KiB image with mapped sites highlighted.
+Browser tool for Tongsheng TSDZ8 stock motor firmware (Infineon XMC1xxx). It patches documented immediates (speed ceiling, PAS percents, walk target, FOC/stall/protect constants) and writes a checksum-correct Intel HEX. A compare view diffs two dumps and names mapped parameter changes. A hex view shows the full 64 KiB image with mapped sites highlighted.
 
 It does **not** include vendor firmware or a Ghidra project. Flashing is the host CLI ([`tools/jlink_flasher/`](tools/jlink_flasher/)). Experimental Chrome WebUSB is off unless the patcher is opened with `?webusb=1`.
 
