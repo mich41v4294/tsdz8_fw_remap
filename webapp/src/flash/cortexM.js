@@ -11,8 +11,9 @@ import {
   DHCSR_S_HALT,
   DHCSR_S_REGRDY,
   SRAM_CODE,
-} from "./constants";
-import { SwdError, SwdHost } from "./swd";
+} from "./constants.js";
+import { SwdError } from "./swd.js";
+import { t } from "../i18n.js";
 
 const CSW = 0x00;
 export const MEMAP_TAR = 0x04;
@@ -32,111 +33,101 @@ const REG_PC = 15;
 const REG_XPSR = 16;
 const XPSR_THUMB = 0x01000000;
 
-export interface MemIf {
-  read32(addr: number): Promise<number>;
-  write32(addr: number, value: number): Promise<void>;
-  read16(addr: number): Promise<number>;
-  write16(addr: number, value: number): Promise<void>;
-  read8(addr: number): Promise<number>;
-  write8(addr: number, value: number): Promise<void>;
-}
+export class CortexM {
+  constructor(swd) {
+    this.swd = swd;
+    this.select = 0xffffffff;
+    this.csw = 0xffffffff;
+  }
 
-export type DumpProgressFn = (done: number, total: number) => void;
-
-export class CortexM implements MemIf {
-  private select = 0xffffffff;
-  private csw = 0xffffffff;
-
-  constructor(private readonly swd: SwdHost) {}
-
-  private async setSelect(apSel: number, bank: number): Promise<void> {
+  async setSelect(apSel, bank) {
     const v = ((apSel & 0xff) << 24) | ((bank & 0xf) << 4);
     if (v === this.select) return;
     await this.swd.writeDp(SELECT, v);
     this.select = v;
   }
 
-  private async setCsw(value: number): Promise<void> {
+  async setCsw(value) {
     await this.setSelect(0, 0);
     if (value === this.csw) return;
     await this.swd.writeAp(CSW, value);
     this.csw = value;
   }
 
-  async read32(addr: number): Promise<number> {
+  async read32(addr) {
     await this.setCsw(CSW_32);
     await this.swd.writeAp(TAR, addr >>> 0);
     return this.swd.readAp(DRW);
   }
 
-  async write32(addr: number, value: number): Promise<void> {
+  async write32(addr, value) {
     await this.setCsw(CSW_32);
     await this.swd.writeAp(TAR, addr >>> 0);
     await this.swd.writeAp(DRW, value >>> 0);
   }
 
-  async read16(addr: number): Promise<number> {
+  async read16(addr) {
     await this.setCsw(CSW_16);
     await this.swd.writeAp(TAR, addr >>> 0);
     return (await this.swd.readAp(DRW)) & 0xffff;
   }
 
-  async write16(addr: number, value: number): Promise<void> {
+  async write16(addr, value) {
     await this.setCsw(CSW_16);
     await this.swd.writeAp(TAR, addr >>> 0);
     await this.swd.writeAp(DRW, value & 0xffff);
   }
 
-  async read8(addr: number): Promise<number> {
+  async read8(addr) {
     await this.setCsw(CSW_8);
     await this.swd.writeAp(TAR, addr >>> 0);
     return (await this.swd.readAp(DRW)) & 0xff;
   }
 
-  async write8(addr: number, value: number): Promise<void> {
+  async write8(addr, value) {
     await this.setCsw(CSW_8);
     await this.swd.writeAp(TAR, addr >>> 0);
     await this.swd.writeAp(DRW, value & 0xff);
   }
 
-  async halt(): Promise<void> {
+  async halt() {
     await this.write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN | DHCSR_C_HALT);
     for (let i = 0; i < 50; i++) {
       const s = await this.read32(DHCSR);
       if (s & DHCSR_S_HALT) return;
     }
-    throw new SwdError("Core did not halt");
+    throw new SwdError(t("swd.noHalt"));
   }
 
-  async go(): Promise<void> {
+  async go() {
     await this.write32(DHCSR, DHCSR_DBGKEY | DHCSR_C_DEBUGEN);
   }
 
-  async resetRun(): Promise<void> {
+  async resetRun() {
     await this.write32(AIRCR, AIRCR_VECTKEY | AIRCR_SYSRESETREQ);
     await this.write32(DHCSR, DHCSR_DBGKEY);
   }
 
-  async writeReg(reg: number, value: number): Promise<void> {
+  async writeReg(reg, value) {
     await this.write32(DCRDR, value >>> 0);
     await this.write32(DCRSR, (1 << 16) | (reg & 0x1f));
     for (let i = 0; i < 20; i++) {
       if ((await this.read32(DHCSR)) & DHCSR_S_REGRDY) return;
     }
-    throw new SwdError("DCRSR write timeout");
+    throw new SwdError(t("swd.dcrsrWrite"));
   }
 
-  async readReg(reg: number): Promise<number> {
+  async readReg(reg) {
     await this.write32(DCRSR, reg & 0x1f);
     for (let i = 0; i < 20; i++) {
       if ((await this.read32(DHCSR)) & DHCSR_S_REGRDY) {
         return this.read32(DCRDR);
       }
     }
-    throw new SwdError("DCRSR read timeout");
+    throw new SwdError(t("swd.dcrsrRead"));
   }
 
-  async readMem(addr: number, length: number, onProgress?: DumpProgressFn): Promise<Uint8Array> {
+  async readMem(addr, length, onProgress) {
     const out = new Uint8Array(length);
     let i = 0;
     const words = length & ~3;
@@ -166,27 +157,20 @@ export class CortexM implements MemIf {
     return out;
   }
 
-  async writeMem(addr: number, data: Uint8Array): Promise<void> {
+  async writeMem(addr, data) {
     let i = 0;
     while (i + 4 <= data.length) {
-      const w = data[i]! | (data[i + 1]! << 8) | (data[i + 2]! << 16) | (data[i + 3]! << 24);
+      const w = data[i] | (data[i + 1] << 8) | (data[i + 2] << 16) | (data[i + 3] << 24);
       await this.write32(addr + i, w >>> 0);
       i += 4;
     }
     while (i < data.length) {
-      await this.write8(addr + i, data[i]!);
+      await this.write8(addr + i, data[i]);
       i++;
     }
   }
 
-  /**
-   * Load Thumb at SRAM_CODE, set r0–r3 and PC, run until BKPT halt.
-   */
-  async runFromSram(
-    code: Uint8Array,
-    args: { r0: number; r1: number; r2: number; r3: number },
-    timeoutMs = 4000,
-  ): Promise<{ pc: number; r0: number }> {
+  async runFromSram(code, args, timeoutMs = 4000) {
     await this.halt();
     await this.writeMem(SRAM_CODE, code);
     await this.writeReg(0, args.r0 >>> 0);
@@ -206,10 +190,10 @@ export class CortexM implements MemIf {
         return { pc, r0 };
       }
     }
-    throw new SwdError("SRAM helper did not halt (BKPT timeout)");
+    throw new SwdError(t("swd.sramTimeout"));
   }
 }
 
-export function isSramHost(mem: MemIf): mem is CortexM {
+export function isSramHost(mem) {
   return mem instanceof CortexM;
 }

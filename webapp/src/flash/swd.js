@@ -1,9 +1,6 @@
-import { bitsToInt, intToBits, packBits, parity32, u32and, unpackBits } from "./bits";
-import { JLinkError } from "./jlinkUsb";
-
-export interface SwdIo {
-  swdIo(direction: Uint8Array, data: Uint8Array, bitCount: number): Promise<Uint8Array>;
-}
+import { bitsToInt, intToBits, packBits, parity32, u32and, unpackBits } from "./bits.js";
+import { JLinkError } from "./jlinkUsb.js";
+import { t } from "../i18n.js";
 
 const ACK_OK = 0b001;
 const ACK_WAIT = 0b010;
@@ -14,17 +11,17 @@ const CTRLSTAT_CSYSPWRUPACK = 0x80000000;
 const CTRLSTAT_POWERED = (CTRLSTAT_CDBGPWRUPACK | CTRLSTAT_CSYSPWRUPACK) >>> 0;
 
 export class SwdError extends Error {
-  constructor(message: string) {
+  constructor(message) {
     super(message);
     this.name = "SwdError";
   }
 }
 
-export function ctrlStatPowered(stat: number): boolean {
+export function ctrlStatPowered(stat) {
   return u32and(stat, CTRLSTAT_POWERED) === CTRLSTAT_POWERED;
 }
 
-function requestByte(ap: boolean, read: boolean, a23: number): number {
+export function requestByte(ap, read, a23) {
   const a2 = (a23 >> 2) & 1;
   const a3 = (a23 >> 3) & 1;
   const apn = ap ? 1 : 0;
@@ -34,60 +31,61 @@ function requestByte(ap: boolean, read: boolean, a23: number): number {
 }
 
 export class SwdHost {
-  private clearingFault = false;
+  constructor(io) {
+    this.io = io;
+    this.clearingFault = false;
+  }
 
-  constructor(private readonly io: SwdIo) {}
-
-  private async transfer(dir: boolean[], data: boolean[]): Promise<boolean[]> {
+  async transfer(dir, data) {
     const packedDir = packBits(dir);
     const packedData = packBits(data);
     const resp = await this.io.swdIo(packedDir, packedData, dir.length);
     return unpackBits(resp, dir.length);
   }
 
-  async lineResetAndSwitch(): Promise<void> {
-    const ones = Array(56).fill(true) as boolean[];
-    const zeros = Array(8).fill(false) as boolean[];
+  async lineResetAndSwitch() {
+    const ones = Array(56).fill(true);
+    const zeros = Array(8).fill(false);
     const switchBits = intToBits(0xe79e, 16);
     const seq = [...ones, ...switchBits, ...ones, ...zeros];
     const dir = seq.map(() => true);
     await this.transfer(dir, seq);
   }
 
-  async idle(n = 8): Promise<void> {
-    const bits = Array(n).fill(false) as boolean[];
+  async idle(n = 8) {
+    const bits = Array(n).fill(false);
     await this.transfer(
       bits.map(() => true),
       bits,
     );
   }
 
-  private async rawTxn(ap: boolean, read: boolean, a23: number, wdata?: number): Promise<number> {
+  async rawTxn(ap, read, a23, wdata) {
     for (let attempt = 0; attempt < 8; attempt++) {
       const req = intToBits(requestByte(ap, read, a23), 8);
-      const dir: boolean[] = [];
-      const out: boolean[] = [];
-      const pushOut = (bits: boolean[]) => {
+      const dir = [];
+      const out = [];
+      const pushOut = (bits) => {
         for (const b of bits) {
           dir.push(true);
           out.push(b);
         }
       };
-      const pushIn = (count: number) => {
+      const pushIn = (count) => {
         for (let i = 0; i < count; i++) {
           dir.push(false);
           out.push(false);
         }
       };
       pushOut(req);
-      pushIn(1); // turnaround
-      pushIn(3); // ACK
+      pushIn(1);
+      pushIn(3);
       if (read) {
         pushIn(32);
-        pushIn(1); // parity
-        pushIn(1); // turnaround
+        pushIn(1);
+        pushIn(1);
       } else {
-        pushIn(1); // turnaround after ACK
+        pushIn(1);
         const payload = wdata ?? 0;
         pushOut(intToBits(payload, 32));
         pushOut([parity32(payload)]);
@@ -110,9 +108,9 @@ export class SwdHost {
             this.clearingFault = false;
           }
         }
-        throw new SwdError("SWD FAULT");
+        throw new SwdError(t("swd.fault"));
       }
-      if (ack !== ACK_OK) throw new SwdError(`SWD ACK 0b${ack.toString(2)}`);
+      if (ack !== ACK_OK) throw new SwdError(t("swd.ack", { ack: ack.toString(2) }));
       if (!read) {
         await this.idle();
         return 0;
@@ -120,44 +118,44 @@ export class SwdHost {
       const dataBits = captured.slice(ackStart + 3, ackStart + 3 + 32);
       const parBit = captured[ackStart + 3 + 32];
       const value = bitsToInt(dataBits);
-      if (parity32(value) !== parBit) throw new SwdError("SWD parity");
+      if (parity32(value) !== parBit) throw new SwdError(t("swd.parity"));
       await this.idle();
       return value;
     }
-    throw new SwdError("SWD WAIT timeout");
+    throw new SwdError(t("swd.wait"));
   }
 
-  async readDp(addr: number): Promise<number> {
+  async readDp(addr) {
     return this.rawTxn(false, true, addr);
   }
 
-  async writeDp(addr: number, value: number): Promise<void> {
+  async writeDp(addr, value) {
     await this.rawTxn(false, false, addr, value);
   }
 
-  async readAp(addr: number): Promise<number> {
+  async readAp(addr) {
     await this.rawTxn(true, true, addr);
-    return this.readDp(0x0c); // RDBUFF
+    return this.readDp(0x0c);
   }
 
-  async writeAp(addr: number, value: number): Promise<void> {
+  async writeAp(addr, value) {
     await this.rawTxn(true, false, addr, value);
   }
 
-  async connectDebug(): Promise<number> {
+  async connectDebug() {
     await this.lineResetAndSwitch();
     const idcode = await this.readDp(0x00);
     if ((idcode & 0x0fff) === 0) {
-      throw new SwdError(`Bad DPIDR 0x${idcode.toString(16)}`);
+      throw new SwdError(t("swd.badDpidr", { idcode: idcode.toString(16) }));
     }
-    await this.writeDp(0x00, 0x1e); // ABORT sticky flags
-    await this.writeDp(0x04, 0x50000000); // CTRL/STAT CSYSPWRUPREQ | CDBGPWRUPREQ
+    await this.writeDp(0x00, 0x1e);
+    await this.writeDp(0x04, 0x50000000);
     for (let i = 0; i < 20; i++) {
       const stat = await this.readDp(0x04);
       if (ctrlStatPowered(stat)) return idcode;
     }
-    throw new SwdError("Debug power-up failed");
+    throw new SwdError(t("swd.power"));
   }
 }
 
-export { requestByte, JLinkError };
+export { JLinkError };

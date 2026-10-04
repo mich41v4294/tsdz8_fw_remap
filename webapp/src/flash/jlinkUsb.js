@@ -1,9 +1,5 @@
-import {
-  CAP_GET_EXT_CAPS,
-  CAP_GET_MAX_BLOCK_SIZE,
-  CAP_SELECT_TIF,
-  SEGGER_VID,
-} from "./constants";
+import { CAP_GET_EXT_CAPS, CAP_GET_MAX_BLOCK_SIZE, CAP_SELECT_TIF, SEGGER_VID } from "./constants.js";
+import { t } from "../i18n.js";
 
 export const CMD = {
   VERSION: 0x01,
@@ -17,7 +13,7 @@ export const CMD = {
   GET_CAPS: 0xe8,
   GET_CAPS_EX: 0xed,
   GET_HW_VERSION: 0xf0,
-} as const;
+};
 
 export const IF_SWD = 1;
 export const VERSION_MAX_LEN = 256;
@@ -27,22 +23,16 @@ export const USB_CLASS_CDC_DATA = 0x0a;
 export const USB_CLASS_VENDOR = 0xff;
 
 export class JLinkError extends Error {
-  constructor(message: string) {
+  constructor(message) {
     super(message);
     this.name = "JLinkError";
   }
 }
 
-export interface BulkUsb {
-  write(data: Uint8Array): Promise<void>;
-  read(n: number): Promise<Uint8Array>;
-  close(): Promise<void>;
-}
-
-export function encodeSwdIo(direction: Uint8Array, data: Uint8Array, bitCount: number): Uint8Array {
+export function encodeSwdIo(direction, data, bitCount) {
   const numBytes = Math.ceil(bitCount / 8);
   if (direction.length < numBytes || data.length < numBytes) {
-    throw new JLinkError("SWD payload shorter than bit count");
+    throw new JLinkError(t("jlink.swdShort"));
   }
   const buf = new Uint8Array(4 + 2 * numBytes);
   buf[0] = CMD.HW_JTAG3;
@@ -54,52 +44,50 @@ export function encodeSwdIo(direction: Uint8Array, data: Uint8Array, bitCount: n
   return buf;
 }
 
-export function parseSwdIoResponse(resp: Uint8Array, bitCount: number): Uint8Array {
+export function parseSwdIoResponse(resp, bitCount) {
   const numBytes = Math.ceil(bitCount / 8);
   if (resp.length < numBytes + 1) {
-    throw new JLinkError(`SWD response short (${resp.length} < ${numBytes + 1})`);
+    throw new JLinkError(t("jlink.swdRespShort", { got: String(resp.length), need: String(numBytes + 1) }));
   }
   if (resp[numBytes] !== 0) {
-    throw new JLinkError(`J-Link SWD I/O error 0x${resp[numBytes].toString(16)}`);
+    throw new JLinkError(t("jlink.swdIoError", { code: resp[numBytes].toString(16) }));
   }
   return resp.subarray(0, numBytes);
 }
 
-function u16le(n: number): Uint8Array {
+function u16le(n) {
   return Uint8Array.from([n & 0xff, (n >> 8) & 0xff]);
 }
 
-function u32le(bytes: Uint8Array, offset = 0): number {
+function u32le(bytes, offset = 0) {
   return (
-    (bytes[offset]! |
-      (bytes[offset + 1]! << 8) |
-      (bytes[offset + 2]! << 16) |
-      (bytes[offset + 3]! << 24)) >>>
+    (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>>
     0
   );
 }
 
-export function hasCap(caps: number, bit: number): boolean {
+export function hasCap(caps, bit) {
   return ((caps >>> bit) & 1) === 1;
 }
 
 export class JLinkUsb {
-  caps = 0;
-  firmware = "";
-  vtrefMv = 0;
-  maxMemBlock = 0x2000;
+  constructor(usb) {
+    this.usb = usb;
+    this.caps = 0;
+    this.firmware = "";
+    this.vtrefMv = 0;
+    this.maxMemBlock = 0x2000;
+  }
 
-  constructor(private readonly usb: BulkUsb) {}
-
-  async writeCmd(bytes: Uint8Array): Promise<void> {
+  async writeCmd(bytes) {
     await this.usb.write(bytes);
   }
 
-  async readExact(n: number): Promise<Uint8Array> {
+  async readExact(n) {
     return this.usb.read(n);
   }
 
-  async hello(): Promise<void> {
+  async hello() {
     await this.writeCmd(Uint8Array.from([CMD.GET_CAPS]));
     this.caps = u32le(await this.readExact(4));
     if (hasCap(this.caps, CAP_GET_EXT_CAPS)) {
@@ -108,9 +96,9 @@ export class JLinkUsb {
     }
     await this.writeCmd(Uint8Array.from([CMD.VERSION]));
     const lenBytes = await this.readExact(2);
-    const n = lenBytes[0]! | (lenBytes[1]! << 8);
+    const n = lenBytes[0] | (lenBytes[1] << 8);
     if (n === 0 || n > VERSION_MAX_LEN) {
-      throw new JLinkError(`VERSION length ${n} is out of range`);
+      throw new JLinkError(t("jlink.versionLen", { n: String(n) }));
     }
     const raw = await this.readExact(n);
     const z = raw.indexOf(0);
@@ -121,38 +109,38 @@ export class JLinkUsb {
     }
   }
 
-  async selectSwd(): Promise<void> {
+  async selectSwd() {
     if (!hasCap(this.caps, CAP_SELECT_TIF)) {
       return;
     }
     await this.writeCmd(Uint8Array.from([CMD.SELECT_IF, 0xff]));
     const mask = u32le(await this.readExact(4));
     if (mask !== 0xffffffff && (mask & (1 << IF_SWD)) === 0) {
-      throw new JLinkError(`Probe does not report SWD (IF mask 0x${mask.toString(16)})`);
+      throw new JLinkError(t("jlink.noSwd", { mask: mask.toString(16) }));
     }
     await this.writeCmd(Uint8Array.from([CMD.SELECT_IF, IF_SWD]));
     await this.readExact(4);
   }
 
-  async setSpeedKhz(khz: number): Promise<void> {
+  async setSpeedKhz(khz) {
     const payload = new Uint8Array(3);
     payload[0] = CMD.SET_SPEED;
     payload.set(u16le(khz), 1);
     await this.writeCmd(payload);
   }
 
-  async setKickstartPower(on: boolean): Promise<void> {
+  async setKickstartPower(on) {
     await this.writeCmd(Uint8Array.from([CMD.SET_KS_POWER, on ? 1 : 0]));
   }
 
-  async readVtrefMv(): Promise<number> {
+  async readVtrefMv() {
     await this.writeCmd(Uint8Array.from([CMD.GET_STATE]));
     const st = await this.readExact(8);
-    this.vtrefMv = st[0]! | (st[1]! << 8);
+    this.vtrefMv = st[0] | (st[1] << 8);
     return this.vtrefMv;
   }
 
-  async swdIo(direction: Uint8Array, data: Uint8Array, bitCount: number): Promise<Uint8Array> {
+  async swdIo(direction, data, bitCount) {
     const pkt = encodeSwdIo(direction, data, bitCount);
     await this.writeCmd(pkt);
     const numBytes = Math.ceil(bitCount / 8);
@@ -160,42 +148,16 @@ export class JLinkUsb {
     return parseSwdIoResponse(resp, bitCount);
   }
 
-  async close(): Promise<void> {
+  async close() {
     await this.usb.close();
   }
 }
 
-export type UsbEndpointView = {
-  endpointNumber: number;
-  direction: "in" | "out";
-  type: string;
-};
-
-export type UsbAlternateView = {
-  alternateSetting: number;
-  interfaceClass: number;
-  interfaceSubclass: number;
-  interfaceProtocol: number;
-  endpoints: UsbEndpointView[];
-};
-
-export type UsbInterfaceView = {
-  interfaceNumber: number;
-  alternates: UsbAlternateView[];
-};
-
-export type JlinkBulkPair = {
-  iface: number;
-  alternateSetting: number;
-  inEp: number;
-  outEp: number;
-};
-
-function bulkPair(alt: UsbAlternateView): { inEp: number; outEp: number } | null {
+function bulkPair(alt) {
   const bulk = alt.endpoints.filter((ep) => ep.type === "bulk");
   if (bulk.length !== 2) return null;
-  let inEp: number | null = null;
-  let outEp: number | null = null;
+  let inEp = null;
+  let outEp = null;
   for (const ep of bulk) {
     if (ep.direction === "in") inEp = ep.endpointNumber;
     if (ep.direction === "out") outEp = ep.endpointNumber;
@@ -204,11 +166,11 @@ function bulkPair(alt: UsbAlternateView): { inEp: number; outEp: number } | null
   return { inEp, outEp };
 }
 
-function isCdc(alt: UsbAlternateView): boolean {
+function isCdc(alt) {
   return alt.interfaceClass === USB_CLASS_CDC_COMM || alt.interfaceClass === USB_CLASS_CDC_DATA;
 }
 
-function isVendorFf(alt: UsbAlternateView): boolean {
+function isVendorFf(alt) {
   return (
     alt.interfaceClass === USB_CLASS_VENDOR &&
     alt.interfaceSubclass === USB_CLASS_VENDOR &&
@@ -216,17 +178,17 @@ function isVendorFf(alt: UsbAlternateView): boolean {
   );
 }
 
-function isVendorClass(alt: UsbAlternateView): boolean {
+function isVendorClass(alt) {
   return alt.interfaceClass === USB_CLASS_VENDOR;
 }
 
-function altOf(interfaces: UsbInterfaceView[], pair: JlinkBulkPair): UsbAlternateView | undefined {
+function altOf(interfaces, pair) {
   const iface = interfaces.find((x) => x.interfaceNumber === pair.iface);
   return iface?.alternates.find((a) => a.alternateSetting === pair.alternateSetting);
 }
 
-export function findJlinkInterface(interfaces: UsbInterfaceView[]): JlinkBulkPair {
-  const candidates: JlinkBulkPair[] = [];
+export function findJlinkInterface(interfaces) {
+  const candidates = [];
   for (const iface of interfaces) {
     for (const alt of iface.alternates) {
       if (isCdc(alt)) continue;
@@ -249,14 +211,12 @@ export function findJlinkInterface(interfaces: UsbInterfaceView[]): JlinkBulkPai
     return alt ? isVendorClass(alt) : false;
   });
   if (vendorClass) return vendorClass;
-  throw new JLinkError(
-    "No J-Link vendor bulk interface (class 0xFF, two bulk endpoints). CDC/COM ports are ignored.",
-  );
+  throw new JLinkError(t("jlink.noInterface"));
 }
 
-function interfacesFromDevice(device: USBDevice): UsbInterfaceView[] {
+function interfacesFromDevice(device) {
   const cfg = device.configuration;
-  if (!cfg) throw new JLinkError("USB device has no configuration");
+  if (!cfg) throw new JLinkError(t("jlink.noConfig"));
   return cfg.interfaces.map((iface) => ({
     interfaceNumber: iface.interfaceNumber,
     alternates: iface.alternates.map((alt) => ({
@@ -273,7 +233,7 @@ function interfacesFromDevice(device: USBDevice): UsbInterfaceView[] {
   }));
 }
 
-export async function closeQuietly(device: USBDevice): Promise<void> {
+export async function closeQuietly(device) {
   try {
     await device.close();
   } catch {
@@ -281,17 +241,16 @@ export async function closeQuietly(device: USBDevice): Promise<void> {
   }
 }
 
-export class WebUsbBulk implements BulkUsb {
-  private leftover = new Uint8Array(0);
+export class WebUsbBulk {
+  constructor(device, inEp, outEp, iface) {
+    this.device = device;
+    this.inEp = inEp;
+    this.outEp = outEp;
+    this.iface = iface;
+    this.leftover = new Uint8Array(0);
+  }
 
-  constructor(
-    private readonly device: USBDevice,
-    private readonly inEp: number,
-    private readonly outEp: number,
-    private readonly iface: number,
-  ) {}
-
-  async write(data: Uint8Array): Promise<void> {
+  async write(data) {
     let off = 0;
     while (off < data.length) {
       const slice = data.subarray(off);
@@ -299,13 +258,13 @@ export class WebUsbBulk implements BulkUsb {
       copy.set(slice);
       const r = await this.device.transferOut(this.outEp, copy.buffer);
       if (r.status !== "ok" || !r.bytesWritten) {
-        throw new JLinkError(`USB OUT failed (${r.status})`);
+        throw new JLinkError(t("jlink.usbOut", { status: r.status }));
       }
       off += r.bytesWritten;
     }
   }
 
-  async read(n: number): Promise<Uint8Array> {
+  async read(n) {
     const out = new Uint8Array(n);
     let off = 0;
     while (off < n) {
@@ -318,11 +277,11 @@ export class WebUsbBulk implements BulkUsb {
       }
       const r = await this.device.transferIn(this.inEp, n - off);
       if (r.status !== "ok" || !r.data) {
-        throw new JLinkError(`USB IN failed (${r.status})`);
+        throw new JLinkError(t("jlink.usbIn", { status: r.status }));
       }
       const chunk = new Uint8Array(r.data.buffer, r.data.byteOffset, r.data.byteLength);
       if (chunk.length === 0) {
-        throw new JLinkError("USB IN returned 0 bytes");
+        throw new JLinkError(t("jlink.usbZero"));
       }
       const need = n - off;
       if (chunk.length <= need) {
@@ -337,7 +296,7 @@ export class WebUsbBulk implements BulkUsb {
     return out;
   }
 
-  async close(): Promise<void> {
+  async close() {
     try {
       await this.device.releaseInterface(this.iface);
     } catch {
@@ -347,19 +306,16 @@ export class WebUsbBulk implements BulkUsb {
   }
 }
 
-export function webUsbAvailable(): boolean {
+export function webUsbAvailable() {
   return typeof navigator !== "undefined" && "usb" in navigator;
 }
 
-function claimError(err: unknown): JLinkError {
+function claimError(err) {
   const msg = err instanceof Error ? err.message : String(err);
-  return new JLinkError(
-    `Could not claim the J-Link USB interface (${msg}). Close J-Flash / JLinkExe / pylink. ` +
-      "On Windows the SEGGER driver often owns the device — use python -m tools.jlink_flasher instead.",
-  );
+  return new JLinkError(t("jlink.claim", { msg }));
 }
 
-export async function attachJlinkDevice(device: USBDevice): Promise<{ jlink: JLinkUsb; product: string }> {
+export async function attachJlinkDevice(device) {
   let claimed = -1;
   try {
     if (device.opened) {
@@ -395,13 +351,13 @@ export async function attachJlinkDevice(device: USBDevice): Promise<{ jlink: JLi
   }
 }
 
-export async function openWebJlink(): Promise<{ jlink: JLinkUsb; product: string }> {
+export async function openWebJlink() {
   if (!webUsbAvailable()) {
-    throw new JLinkError("This browser has no WebUSB. Use desktop Chrome/Edge, or the Python CLI.");
+    throw new JLinkError(t("jlink.noWebusb"));
   }
   const usb = navigator.usb;
   if (!usb) {
-    throw new JLinkError("This browser has no WebUSB. Use desktop Chrome/Edge, or the Python CLI.");
+    throw new JLinkError(t("jlink.noWebusb"));
   }
   const device = await usb.requestDevice({ filters: [{ vendorId: SEGGER_VID }] });
   return attachJlinkDevice(device);

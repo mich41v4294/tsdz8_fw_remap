@@ -1,0 +1,931 @@
+{
+  "title": "TSDZ8 stock parameter patcher",
+  "lede": "Load the Tongsheng stock HEX, raise firmware ceilings, and download a checksum-correct HEX. The VD04 still chooses the live on-road / off-road speed.",
+  "banner.strong": "Off-road / private property only.",
+  "banner.body": "Raising the motor speed cap can make the bike illegal on public roads and is your responsibility. The handlebar hold-to-toggle path is not rewritten.",
+  "drop.hex": "Drop or choose <code>original firmware thonghsheng.hex</code>",
+  "status.noFile": "No file loaded.",
+  "status.ready": "{name} matches {id}. Ready to patch ceilings.",
+  "status.mismatch": "{name} does not match this stock map at {addr} ({id}). Expected {expected}, found {actual}.",
+  "fields.riderHint": "Everyday speed, PAS, walk, and silent-display defaults. Checkboxes rewrite branch opcodes; number fields and sliders patch immediates.",
+  "fields.notes": "Notes",
+  "fields.stock": "Stock",
+  "presets.title": "Start from a preset",
+  "presets.hint": "Click a preset to apply it. Other fields stay as they are. Off-road / private property only.",
+  "presets.applied": "Applied",
+  "presets.offroad_unlimit.label": "Off-road unlimit",
+  "presets.offroad_unlimit.summary": "Keep the 25 km/h wall when the display is on-road, skip it when the display sends 60, disable speed fade, set ride current clamp to 32767, skip battery over/under-voltage guards, raise pack max current to 30 A, and max the overload cutout margin (stock trip baseline 641+margin; amp equivalence unverified).",
+  "presets.stock.label": "Stock defaults",
+  "presets.stock.summary": "Reset every mapped field to the stock firmware values.",
+  "pasChart.title": "PAS 1–5 assist",
+  "pasChart.hint": "Drag a point to set that level (0–255%). Past 100% multiplies torque demand harder. The dashed line is stock.",
+  "pasChart.stock": "Stock",
+  "pasChart.fineTune": "Fine-tune PAS percents",
+  "fields.advancedHint": "FOC, stall, hall, wheel-pulse timing, and protection constants. Wrong values can stall the motor, cut assist, or rotate commutation.",
+  "audience.rider": "Rider settings",
+  "audience.advanced": "Advanced firmware tunables",
+  "audience.riderShort": "Rider",
+  "audience.advancedShort": "Advanced",
+  "group.speed": "Speed and current",
+  "group.assist": "Assist",
+  "group.motor": "Motor",
+  "group.protect": "Protection",
+  "group.foc": "FOC / commutation",
+  "badge.advanced": "Advanced",
+  "diff.title": "Byte diff",
+  "diff.loadHint": "Load a HEX to preview patches.",
+  "diff.noChanges": "No changes from the stock immediates.",
+  "diff.audience": "Audience",
+  "diff.parameter": "Parameter",
+  "diff.address": "Address",
+  "diff.old": "Old",
+  "diff.new": "New",
+  "download": "Download patched HEX",
+  "probe.title": "J-Link",
+  "probe.cliHint": "Default flasher is the host CLI (pylink + SEGGER software): close J-Flash / JLinkExe, then <code>./jlink-flash.sh flash patched.hex</code> or Windows <code>jlink-flash.bat</code>. VTref is sense-only unless you pass <code>--power</code>. Do not power from the battery and the J-Link at the same time.",
+  "probe.connect": "Connect J-Link",
+  "probe.flash": "Flash patched image",
+  "probe.verify": "Verify",
+  "probe.dump": "Dump HEX",
+  "probe.power": "Supply target power from the J-Link (off by default)",
+  "probe.webusbHint": "Experimental WebUSB (desktop Chrome/Edge, stock J-Link firmware). Do not reflash the probe.",
+  "probe.none": "No probe.",
+  "probe.useCli": "Use the CLI to dump / flash / verify.",
+  "probe.noWebusb": "WebUSB is not available in this browser. Use desktop Chrome/Edge, or the pylink CLI (jlink-flash).",
+  "probe.confirmFlash": "Off-road / private property only. Flashing can make the bike illegal on public roads. Continue?",
+  "probe.verifyOk": "Verify OK",
+  "probe.flashed": "Flashed and verified {size} bytes at {addr}.",
+  "probe.dumped": "Dumped {size} bytes.",
+  "probe.requesting": "Requesting J-Link (WebUSB)…",
+  "probe.hello": "J-Link hello…",
+  "probe.swd": "SWD connect…",
+  "probe.vtrefZero": "VTref reports 0 V (common on clones); continuing.",
+  "probe.reading": "Reading flash {done}/{total}",
+  "probe.verifying": "verifying…",
+  "probe.erase": "erase",
+  "probe.write": "write",
+  "probe.noPowerSwitch": "This J-Link cannot switch target power",
+  "probe.vtrefLow": "VTref is {volts} V. Power the controller (battery) or enable probe power. Do not do both.",
+  "probe.chipId": "SCU_IDCHIP[23:8]=0x{field} (raw 0x{raw}), expected 0x{expected}",
+  "probe.imageSize": "Image must be {size} bytes",
+  "probe.verifyFail": "Verify failed at 0x{addr}",
+  "probe.vtUnreported": "0 V (unreported)",
+  "probe.info": "{product} fw={firmware} DPIDR=0x{dpidr} VTref={vt}{warn}",
+  "footer.mapped": "Mapped firmware: {label}. Rider settings first; advanced FOC/protect immediates are collapsed below. UART 0x59 framing is locked.",
+  "nav.patcher": "Patcher",
+  "nav.compare": "Compare",
+  "nav.hex": "Hex",
+  "hexviz.title": "Firmware hex view",
+  "hexviz.lede": "Load a HEX dump or raw 64 KiB image. Mapped parameter and locked fingerprint bytes are highlighted in the 64 KiB flash window. Already-patched files are allowed — no stock fingerprint is required.",
+  "hexviz.drop": "Drop or choose a HEX or 64 KiB BIN",
+  "hexviz.needFile": "Load a firmware file to view the 64 KiB flash window.",
+  "hexviz.loaded": "{name} — {sites} mapped sites, {changed} byte(s) differ from stock originals.",
+  "hexviz.parseError": "Could not parse {name}: {message}",
+  "hexviz.modeHex": "Hex",
+  "hexviz.modeBin": "Bin",
+  "hexviz.jump": "Mapped sites",
+  "hexviz.jumpPreserve": "Locked fingerprints",
+  "hexviz.legend": "Legend",
+  "hexviz.legend.preserve": "Locked",
+  "hexviz.legend.patched": "Matches known patch",
+  "hexviz.legend.other": "Differs from stock",
+  "hexviz.address": "Go to address",
+  "hexviz.addressGo": "Go",
+  "hexviz.addressBad": "Address is outside the 64 KiB flash window.",
+  "hexviz.usePatcher": "Use loaded patcher file",
+  "hexviz.detail.unmapped": "Unmapped byte",
+  "hexviz.detail.address": "Address",
+  "hexviz.detail.bytes": "This file",
+  "hexviz.detail.original": "Stock original",
+  "hexviz.detail.value": "Decoded",
+  "hexviz.detail.encoding": "Encoding",
+  "hexviz.detail.status.stock": "Matches stock",
+  "hexviz.detail.status.patched": "Matches known patch",
+  "hexviz.detail.status.other": "Differs from stock",
+  "hexviz.detail.kind.parameter": "Parameter",
+  "hexviz.detail.kind.preserve": "Locked fingerprint",
+  "hexviz.ascii": "ASCII",
+  "hexviz.pickByte": "Click a highlighted byte or a mapped site.",
+  "compare.title": "Firmware compare",
+  "compare.lede": "Load two HEX dumps (or raw 64 KiB images). Mapped parameter bytes are decoded; everything else is listed as unmapped byte ranges. Already-patched files are allowed — no stock fingerprint is required.",
+  "compare.dropA": "File A (left / old)",
+  "compare.dropB": "File B (right / new)",
+  "compare.needTwo": "Load two firmware files to compare.",
+  "compare.identical": "The two images are identical in the mapped 64 KiB window.",
+  "compare.summary": "{params} mapped parameter(s) changed, {bytes} unmapped byte(s).",
+  "compare.paramsTitle": "Mapped parameter changes",
+  "compare.unmappedTitle": "Unmapped byte changes",
+  "compare.value": "{old} → {new} {unit}",
+  "compare.checkbox": "{old} → {new}",
+  "compare.checkboxOn": "on",
+  "compare.checkboxOff": "off",
+  "compare.checkboxUnknown": "unknown opcode",
+  "compare.rangeBytes": "{count} bytes",
+  "compare.parseError": "Could not parse {name}: {message}",
+  "compare.binSize": "Image must be {want} bytes (got {got})",
+  "compare.loaded": "{name} loaded ({size} bytes).",
+  "lang.en": "EN",
+  "lang.sk": "SK",
+  "hex.noColon": "Line does not start with ':': {preview}",
+  "hex.badLength": "Invalid record length: {line}",
+  "hex.countMismatch": "Count mismatch on record at {addr}",
+  "hex.checksum": "Checksum {recorded} != {expected} at {addr}",
+  "hex.empty": "Empty HEX file",
+  "hex.noEof": "HEX file does not end with an EOF record",
+  "hex.missingAddr": "Address 0x{addr} is missing",
+  "hex.outside": "HEX data at 0x{addr} is outside 0x{base}+{size}",
+  "hex.holes": "HEX has holes in the flash window (first missing 0x{addr})",
+  "hex.notInImage": "Address 0x{addr} is not in this HEX image",
+  "encode.multiple": "{label} must be a multiple of {denom}",
+  "encode.movs": "{label} does not fit in a Thumb movs imm8<<{shift}",
+  "encode.stockOrRange": "{label} 0 keeps the stock 6200 convert; overrides must be 450–32767",
+  "encode.mantissa": "{label} must keep the shared IEEE mantissa (valid percents are 10/20/40/80/160)",
+  "encode.asrsPair": "{label} must be a sum of two powers of two that fit two asrs shifts",
+  "patch.mismatch": "This HEX does not match the mapped stock firmware at 0x{addr} ({id}). Refusing to patch.",
+  "patch.range": "{label} must be between {min} and {max}",
+  "patch.step": "{label} must be a multiple of {step}",
+  "jlink.swdShort": "SWD payload shorter than bit count",
+  "jlink.swdRespShort": "SWD response short ({got} < {need})",
+  "jlink.swdIoError": "J-Link SWD I/O error 0x{code}",
+  "jlink.versionLen": "VERSION length {n} is out of range",
+  "jlink.noSwd": "Probe does not report SWD (IF mask 0x{mask})",
+  "jlink.noInterface": "No J-Link vendor bulk interface (class 0xFF, two bulk endpoints). CDC/COM ports are ignored.",
+  "jlink.noConfig": "USB device has no configuration",
+  "jlink.usbOut": "USB OUT failed ({status})",
+  "jlink.usbIn": "USB IN failed ({status})",
+  "jlink.usbZero": "USB IN returned 0 bytes",
+  "jlink.claim": "Could not claim the J-Link USB interface ({msg}). Close J-Flash / JLinkExe / pylink. On Windows the SEGGER driver often owns the device — use python -m tools.jlink_flasher instead.",
+  "jlink.noWebusb": "This browser has no WebUSB. Use desktop Chrome/Edge, or the Python CLI.",
+  "swd.fault": "SWD FAULT",
+  "swd.ack": "SWD ACK 0b{ack}",
+  "swd.parity": "SWD parity",
+  "swd.wait": "SWD WAIT timeout",
+  "swd.badDpidr": "Bad DPIDR 0x{idcode}",
+  "swd.power": "Debug power-up failed",
+  "swd.noHalt": "Core did not halt",
+  "swd.dcrsrWrite": "DCRSR write timeout",
+  "swd.dcrsrRead": "DCRSR read timeout",
+  "swd.sramTimeout": "SRAM helper did not halt (BKPT timeout)",
+  "xmc.verr": "NVM VERR during {what}",
+  "xmc.sramHalt": "SRAM helper halted at PC 0x{pc} r0=0x{r0} during {what}",
+  "xmc.busy": "NVM busy timeout",
+  "xmc.verrCode": "NVM VERR={v}",
+  "xmc.eraseAlign": "Erase size is not page-aligned",
+  "xmc.imageSize": "Image must be {size} bytes",
+  "xmc.blockAlign": "Flash base is not block-aligned",
+  "mapNotes": [
+    "VD04 uses Tongsheng 0x59 UART. ParseDisplayUartFrame writes PAS 0–6 to 0x20002706 and max speed to 0x20002705 when the speed byte is greater than 10. Handlebar on-road/off-road hold-toggle stays on the display; the motor has one ceiling and applies whichever km/h the display sends.",
+    "UpdateDisplayWheelPeriodStatusBit (0x10008810) compares the P0.4 wheel-pulse period at 0x20002590 to kmh<<5 (stock 25 → 800) and writes display TX bit 0x40000. That cell is a period (stopped 4100), not km/h. Live motor taper is ApplyWheelSpeedFade. Unplugging the sensor leaves the period high (stopped), not low. Other movs #0x19 sites are an 800-tick timeout, a current-staging +800, fade-hi*25/22, and a torque-path 25<<5 at 0x1000834A.",
+    "ApplyAssistLevelTargets maps PAS 1–5 to percent immediates (30/50/70/85/100) at g_bAssistPercent (0x200026F9). CalculateTorqueAssistCurrent multiplies filtered torque demand by that byte. A separate FOC cap at g_wScaledAssist uses soft-float 0.4/0.5/0.8/0.9/1.0. PAS1/PAS3 share mantissa low-word 0x9999999A (locked); the high words are pas1_foc_scale / pas3_foc_scale. PAS4 0.9 at 0x10002FDC is independently patchable. PAS2 FOC is ScaleDoubleByPowerTwo(-n) via pas2_foc_scale (stock n=1 → 0.5).",
+    "PAS 0 is zero. PAS 6 is walk: RunRideControlLoop stores 450 into wCurrentTarget (ride-state+0x12). ApplyAssistLevelTargets then zeros the percent cell and writes walk_assist_fraction_sixteenths of full current (stock 3/16) into the other target words.",
+    "Startup 1000 / 728 / 641 in InitializeRideDefaults seed fade RAM (0x200025AC / 0x2000258A / 0x20002588). RebuildWheelSpeedFadeThresholds rebuilds them from wheel×speed, so the flash immediates do not stick. They are not in this map.",
+    "Rider settings change everyday speed/PAS/walk behavior. Advanced tunables are FOC, stall, hall, wheel-pulse timing, and protection constants — wrong values can stall, cut assist, or rotate commutation.",
+    "The VD04 max speed byte is 60. Raising the Speed ceiling slider only changes the display-status period compare. Live assist taper follows the fade table from wheel×display speed. Unlimit-when-display-60 remaps a stored 60 to 99 for fade math (and also patches the display-status second condition). Disable-fade skips the 600-floor and interpolate after loading the full span. Unlimit-power skips the battery over/under-voltage flags and low-voltage foldback; its raise-slew site can still wind the limit down when avg < UV. Ride current clamp 0 keeps the derived g_wFullCurrentLimit; 450–32767 replaces ConvertFloatToSignedInt with a Thumb uint16. Display max-speed is accepted only when the UART byte is greater than 10."
+  ],
+  "firmwareLabel": "Tongsheng TSDZ8 stock",
+  "parameters": {
+    "speed_ceiling_kmh": {
+      "label": "Speed ceiling",
+      "unit": "km/h",
+      "summary": "Display-status period threshold encoded as km/h then <<5 (stock 25 → 800 ticks). Sets TX bit 0x40000 when wheel period is below that. Because period shrinks as speed rises, a higher slider value asserts the bit at lower wheel speeds. Live motor taper is Speed fade / Unlimit-when-display-60, not this compare.",
+      "notes": "UpdateDisplayWheelPeriodStatusBit: movs r3,#imm; lsls #5; blo sets display TX 0x40000 when P0.4 period at 0x20002590 is below the threshold. Period is written by UpdateWheelPulsePeriod (stopped 4100, boot seed 4500), not a km/h<<5 speed. Raising the immediate raises the period ceiling, so the bit turns on sooner (slower). Rebuild fade periods use ~573*wheel/speed, so stock 800 ticks is nearer ~20 km/h on wheel code 28 than a hard 25 km/h wall. Assist taper is ApplyWheelSpeedFade. With Unlimit speed when display sends 60 on, site 1 only replaces this function's second condition."
+    },
+    "default_max_speed_kmh": {
+      "label": "Default max speed",
+      "unit": "km/h",
+      "summary": "Boot-up max speed only. The display overwrites it as soon as it sends a speed greater than 10. Leave this unless the display is unplugged or not talking.",
+      "notes": "InitializeRideDefaults writes this byte to both 0x20002705 (live display speed) and 0x20002703 (last-cache). RebuildWheelSpeedFadeThresholds rebuilds the fade table only when those two differ, then copies live→cache. A live 0x59 frame overwrites 0x20002705 when speed > uart_min_display_speed_kmh (or wheel code also changes). Patching this without a display-speed change can leave cache matching live, so the fade table is not rebuilt until the display sends a different byte."
+    },
+    "default_wheel_code": {
+      "label": "Default wheel-size code",
+      "unit": "display code",
+      "summary": "Boot-up wheel-size code (Tongsheng 6–34, stock 28). Not millimeters. The display usually overwrites this; it only matters if the display never sends a wheel byte.",
+      "notes": "InitializeRideDefaults stores 0x1C (28) to both 0x20002704 (live wheel code) and 0x20002702 (last-cache). RebuildWheelSpeedFadeThresholds rebuilds fade only when live ≠ last, using the live wheel byte (valid 6–34). Patching this without a display wheel-byte change can skip that rebuild. Silent-display default, not circumference in mm."
+    },
+    "default_pas_level": {
+      "label": "Default PAS level",
+      "unit": "level",
+      "summary": "PAS level used from power-on until the display sends the first valid frame. After that the handlebar buttons own it.",
+      "notes": "InitializeRideDefaults writes 5 to 0x20002706 before the first 0x59 frame. ParseDisplayUartFrame then overwrites it from assist-flag bits. Capped at 5 so a silent display cannot boot into walk (PAS 6)."
+    },
+    "pas1_percent": {
+      "label": "PAS 1 assist",
+      "unit": "%",
+      "summary": "How hard PAS 1 pulls from the torque sensor (stock 30%). Raise for more help on level 1. This is not the FOC current cap.",
+      "notes": "ApplyAssistLevelTargets writes 30 to g_bAssistPercent. CalculateTorqueAssistCurrent multiplies filtered torque demand by this byte. The FOC current cap for PAS 1 is a separate soft-float 0.4 and is not this immediate."
+    },
+    "pas2_percent": {
+      "label": "PAS 2 assist",
+      "unit": "%",
+      "summary": "How hard PAS 2 pulls from the torque sensor (stock 50%). Raise for more help on level 2.",
+      "notes": "Torque-demand multiply is 50%. FOC cap for PAS 2 is ScaleDoubleByPowerTwo(-n) via pas2_foc_scale (stock n=1 → half of max current), not this byte."
+    },
+    "pas3_percent": {
+      "label": "PAS 3 assist",
+      "unit": "%",
+      "summary": "How hard PAS 3 pulls from the torque sensor (stock 70%). Raise for more help on level 3.",
+      "notes": "Torque-demand multiply is 70%. FOC cap is soft-float 0.8; the high word at 0x10002FD8 is PAS 3 FOC scale. PAS 1/3 still share mantissa 0x9999999A."
+    },
+    "pas4_percent": {
+      "label": "PAS 4 assist",
+      "unit": "%",
+      "summary": "How hard PAS 4 pulls from the torque sensor (stock 85%). Raise for more help on level 4.",
+      "notes": "Torque-demand multiply is 85%. FOC cap is a separate soft-float 0.9 at 0x10002FDC (PAS 4 FOC scale)."
+    },
+    "pas5_percent": {
+      "label": "PAS 5 assist",
+      "unit": "%",
+      "summary": "Strongest pedal-assist level, not walk. Stock is already 100% of the torque-sensor demand.",
+      "notes": "Strongest pedal-assist percent (not walk). Torque-demand multiply is 100%. FOC cap copies the max-current setpoint unscaled."
+    },
+    "walk_assist_target": {
+      "label": "Walk-assist target",
+      "unit": "firmware current units",
+      "summary": "How hard walk-assist pushes (stock 450 firmware units). Does not change how you enter walk on the display, only the current while walk is on.",
+      "notes": "RunRideControlLoop when PAS==6: movs r0,#255; adds r0,#imm; strh to ride-state+0x12. Stock 0xC3 gives 450. Then the shared ble clamps cap it against g_wAssistCurrentTarget, which ApplyAssistLevelTargets set to walk_assist_fraction_sixteenths of g_wFullCurrentLimit (stock 3/16). If that fraction of the ride current clamp is below this target, walk cannot reach it."
+    },
+    "torque_engage_deadband": {
+      "label": "Torque engage deadband",
+      "unit": "ADC counts",
+      "summary": "PAS starts only when live torque ADC is above the learned offset plus this (stock 163). Too low twitches at rest; too high feels late.",
+      "notes": "CalculateTorqueAssistCurrent: adds r7,#imm then cmp live ADC. A flag / +0x50>30 path can still engage inside the deadband. Unique adds r7,#0xA3."
+    },
+    "torque_assist_demand_floor": {
+      "label": "PAS demand floor",
+      "unit": "firmware current units",
+      "summary": "Minimum torque-assist demand after the PAS percent multiply (stock 300). Separate from the FOC slew floor of 300.",
+      "notes": "CalculateTorqueAssistCurrent: movs r2,#255; adds r2,#imm; if g_bAssistPercent * filtered_demand < that, store 300 to 0x20002718. The mapped torque slew floor at 0x10008F9C uses the same 255+0x2D encoding in ProcessTorqueCurrentSlewLimit."
+    },
+    "unlimit_speed_display_60": {
+      "label": "Unlimit speed when display sends 60 km/h",
+      "unit": "",
+      "summary": "When the display max is 60, remap fade math to 99 so assist can continue above 60. The first site only changes the display-status period compare; the motor taper change is the 60→99 remap.",
+      "notes": "Site 0x10008826 replaces UpdateDisplayWheelPeriodStatusBit's protect-bit test with display-max==60. That function writes 0x40000 on the display TX word, not the FOC fade cells. Site 0x10008890 remaps a live display 60 to 99 in RebuildWheelSpeedFadeThresholds so the fade table is built for 99 km/h. Does not disable fade; it moves the taper point. Use Disable speed fade if you want no taper. Note: some donor patched HEX instead force the display-status bit always-on (blo→b at 0x10008824/25) and leave 0x10008826 stock — that is not equivalent to this site-1 patch."
+    },
+    "disable_speed_fade": {
+      "label": "Disable speed fade",
+      "unit": "",
+      "summary": "Skip the near-cap assist taper so requested power stays at the full source current. PAS percent, ride-current clamp, thermal, battery, and protect limits still apply.",
+      "notes": "ApplyWheelSpeedFade: skip the 600-floor store (bcs→b) and skip interpolate after ldrh of the full fade span, then on the walk/else path skip to store full source current. Not literally full motor power always — other limiters remain. The hard display-status period compare is separate."
+    },
+    "ride_current_clamp": {
+      "label": "Ride current clamp",
+      "unit": "firmware current units",
+      "summary": "Upper clamp on ride-loop current (throttle and PAS). 0 keeps the stock 6200 firmware-unit convert. 32767 is signed-16 max so the analog throttle map is not cut while the ble still bounds demand.",
+      "notes": "ComputeMotorScaleTables: stock converts the fixed float 6200.0 at 0x10003A44 (scale base+0x98) via ConvertFloatToSignedInt into g_wFullCurrentLimit (0x200025E2). That is a constant, not a pack-current-derived value. PAS 1–5 copies that word into g_wAssistCurrentTarget, then RunRideControlLoop ble-clamps wCurrentTarget to both. 0 leaves the convert. 450–32767 replaces the six bytes with movs r0,#hi; lsls #8; adds #lo so the ble still runs. Skipping those ble instructions lets throttle stage (ADC-600)*2+800 unbounded and the motor twitches. Walk’s +0x12 450 immediate is separate. Can overheat the controller."
+    },
+    "throttle_adc_low": {
+      "label": "Throttle ADC low edge",
+      "unit": "ADC offset",
+      "summary": "Low edge of the analog throttle window as a signed offset (stock −1241). The live window is abs(this) through abs(this)+span. Shared with the PAS-full override path.",
+      "notes": "RunRideControlLoop: adc + this literal is compared to throttle_adc_span (stock 2359) so 1241 ≤ ADC < 3600. The same −1241 word is also loaded by ApplyAssistLevelTargets for the PAS-full override (span throttle_pas_full_span 2679 → ADC < 3920). A second −1241 at 0x100089B8 is fade_throttle_adc_low (ApplyWheelSpeedFade) and is not this slider."
+    },
+    "throttle_adc_span": {
+      "label": "Throttle ADC span",
+      "unit": "ADC counts",
+      "summary": "Width of the analog throttle window (stock 2359). High ADC = abs(low edge) + span, so stock is 1241+2359 = 3600. Unique literal; 3600 is not stored.",
+      "notes": "RunRideControlLoop unsigned compare after adding throttle_adc_low. One xref. The PAS-full override uses throttle_pas_full_span 2679 at 0x100033E8, not this word."
+    },
+    "throttle_adc_offset": {
+      "label": "Throttle ADC offset",
+      "unit": "ADC counts",
+      "summary": "Subtracted from averaged throttle ADC before the ×2 gain (stock 600). Formula is (ADC − offset)×2 + bias.",
+      "notes": "RunRideControlLoop: unique movs r0,#imm; lsls #3 at 0x10003312. Formula (ADC-offset)×2+bias, then uxth. Max 1240 stays at or below the stock throttle-window low edge so a closed throttle cannot wrap to a huge current. Fade floor and LoadMotorScaleDefaults also use 75<<3 = 600 with different registers; those sites stay put."
+    },
+    "throttle_adc_bias": {
+      "label": "Throttle ADC bias",
+      "unit": "firmware current units",
+      "summary": "Added after the throttle ×2 gain (stock 800). Same 25<<5 encoding as the speed wall, but this movs is r0 not r3.",
+      "notes": "RunRideControlLoop unique 19 20 40 01. The 800-tick timeout and torque-path 25<<5 use 19 21 49 01 and are fingerprint-locked."
+    },
+    "pwm_idle_shutdown_ticks": {
+      "label": "PWM idle shutdown",
+      "unit": "ticks",
+      "summary": "How long ride-loop current can stay at zero before PWM is shut down (stock 200 ticks). Lower drops the motor sooner at a stop.",
+      "notes": "RunRideControlLoop: sxth then cmp r0,#imm; blt keep running. At the trip: RAM thunk, CCU OR 0xC00, clear protect/assist bits. A second cmp #0xC8 at 0x10007E96 is Ride protect timeout; a third at 0x100087AC is the throttle-ADC watchdog age saturate. Those are separate sliders."
+    },
+    "fade_assist_floor": {
+      "label": "Speed-fade assist floor",
+      "unit": "firmware units",
+      "summary": "Minimum assist left when speed-fade cuts near/over the cap (stock 600). Raise to keep more power as you near the limit; unused if Disable speed fade is on.",
+      "notes": "ApplyWheelSpeedFade: movs r6,#imm; lsls #3. Stock 75<<3 = 600. Applied when live wheel period is below the fade-at-cap threshold (smaller period = faster / at-or-over the speed cap), and as the +600 term in the fade interpolate. Not a low-speed floor. Skipped while PAS==6. Left-shift is fingerprint-locked."
+    },
+    "thermal_protect_low_band": {
+      "label": "Thermal protect low band",
+      "unit": "percent",
+      "summary": "Averaged NTC percent that clears thermal protect when strictly below this (stock 75). Not a current-shunt ADC.",
+      "notes": "RunRideControlLoop averages LookupTemperatureAdcPercent (not a shunt ADC). Clear-protect is strict less-than this cmp; equal to 75 stays in the interpolate band. Keep this below Thermal protect high band. The interpolate is (high-T)*cell>>4, so the stock 16-wide gap (91-75) is hard-wired; moving only one band makes the ramp discontinuous. High NTC ADC ≥944 forces percent 60, which sits in this clear-protect band."
+    },
+    "thermal_protect_high_band": {
+      "label": "Thermal protect high band",
+      "unit": "percent",
+      "summary": "Upper reference of the thermal fade band (stock 91). Fade already runs from the low band through this value; ≥92 enters the countdown/trip path.",
+      "notes": "RunRideControlLoop: both cmp #imm sites (0x1000353A / 0x10003558). Ramp operates from thermal_protect_low_band through this high reference; equality stays in the fade band. Values above this enter the protect countdown."
+    },
+    "torque_min_current_floor": {
+      "label": "Torque slew current floor",
+      "unit": "firmware current units",
+      "summary": "Minimum FOC current during the torque slew window (stock 300). Raise for a stronger floor while torque is ramping.",
+      "notes": "ProcessTorqueCurrentSlewLimit: movs r0,#255; adds r0,#imm; if foc-state+0x10 < that, clamp to it. Stock 255+0x2D = 300. Assist floor during the slew window."
+    },
+    "torque_slew_sample_timeout": {
+      "label": "Torque slew timeout",
+      "unit": "samples",
+      "summary": "How many samples the torque slew may run before it aborts and restores the saved motor angle (stock 50).",
+      "notes": "ProcessTorqueCurrentSlewLimit: abort after sample index > this cmp; clears flag bit 4 and restores the saved electrical angle. Stock 50. The same count cell is also capped by a RAM window from ComputeMotorScaleTables (0x200025DC); this timeout only fires if that window is above this value."
+    },
+    "pll_rate_clamp_high": {
+      "label": "PLL rate clamp high",
+      "unit": "electrical rate",
+      "summary": "Upper limit on the motor’s electrical-speed tracker (stock 2400). Wrong values can make the FOC loop hunt or lose lock.",
+      "notes": "ProcessParkCurrentPiLoop: movs r2,#imm; lsls #5. Upper clamp on the PLL/electrical-rate cell. Stock 75<<5 = 2400. Asymmetric vs the -1024 low clamp."
+    },
+    "pll_rate_clamp_low": {
+      "label": "PLL rate clamp low",
+      "unit": "electrical rate",
+      "summary": "Lower limit on the same electrical-speed tracker (stock −1024). Pair with the high clamp; do not set this to a large positive number.",
+      "notes": "Literal int32 0xFFFFFC00. Lower clamp on the same PLL/electrical-rate cell as pll_rate_clamp_high."
+    },
+    "stall_current_mag_sq": {
+      "label": "Stall mag-squared",
+      "unit": "Clarke mag^2",
+      "summary": "Dead sensorless path: would trip when raw Clarke mag² is below this (stock 20000). Patching has no effect on stock.",
+      "notes": "HandleUnreachableSvmStallProtect at 0x10009310: if raw Clarke mag² at 0x20002AEC < this literal, equalize PWM. Reconfirmed unreachable after scatter-load/RAM-alias scan. Unrelated 20000 at 0x10002F84 is battery logic."
+    },
+    "stall_phase_balance_count": {
+      "label": "Stall phase-balance count",
+      "unit": "counts",
+      "summary": "Dead sensorless path: phase-balance counter trip (stock 32000). Patching has no effect on stock.",
+      "notes": "HandleUnreachableSvmStallProtect: trips with mag² path when phase-balance count >= imm<<8 (stock 0x7D<<8 = 32000). Reconfirmed unreachable after RAM-alias scan — keep only for experiments on alternate images."
+    },
+    "hall_angle_offset": {
+      "label": "Hall angle offset",
+      "unit": "Q16 electrical",
+      "summary": "Rotates the hall-sensor electrical angle by 30° stock (Q16 0x1555). Not a speed or power knob. Wrong values make the motor noisy, weak, or jerk.",
+      "notes": "HandleHallSixStepCommutation adds this literal to LookupHallCommutationAngle. Stock 0x1555 = 65536/12 = 30 electrical degrees. The hall sector table at 0x1000722C steps by 0x2AAA (60°); 60° here would be 0x2AAB. Copies at 0x100025B4 (enable path) and 0x10009048 (ProcessHallAngleAdvance) are patched together so commutation stays in sync."
+    },
+    "clarke_mag_iir_new": {
+      "label": "Clarke mag IIR (new)",
+      "unit": "Q15 weight",
+      "summary": "Dead Clarke IIR: Q15 weight on the new mag² sample (stock 2768). Patching has no effect on stock.",
+      "notes": "HandleUnreachableClarkePhaseCurrents: movs #imm; lsls #4 Q15 new-weight (stock 0xAD<<4 = 2768). Complementary prev-weight 30000 is fingerprint-locked. Reconfirmed unreachable after RAM-alias scan."
+    },
+    "throttle_pas_full_span": {
+      "label": "PAS-full throttle span",
+      "unit": "ADC counts",
+      "summary": "Width of the throttle window that forces PAS 1–5 to full current (stock 2679). High ADC = abs(low edge) + this span, so stock is 1241+2679 = 3920.",
+      "notes": "ApplyAssistLevelTargets: adc + throttle_adc_low compared to this unique literal. One xref. Walk and PAS 0 skip the override. Separate from the analog throttle map span 2359."
+    },
+    "uart_min_display_speed_kmh": {
+      "label": "Display speed accept floor",
+      "unit": "km/h",
+      "summary": "Display max-speed byte is stored when it is greater than this (stock 10), or when the wheel-size code also changes past uart_min_wheel_code. Silent displays keep the init defaults.",
+      "notes": "ParseDisplayUartFrame: speed is written to 0x20002705 when speed > this OR when the wheel code changed and is above uart_min_wheel_code. Not a hard reject of every frame with speed ≤10."
+    },
+    "ride_target_fade_delta": {
+      "label": "Wheel-period slew threshold",
+      "unit": "firmware units",
+      "summary": "When |delta| exceeds this, SmoothWheelPeriodTargetWord also applies the bulk asrs step before the fine ±1 (stock 16). Smaller values track pulse-period changes more aggressively.",
+      "notes": "SmoothWheelPeriodTargetWord: both cmp #imm sites at 0x100089E4 / 0x10008A00. When |delta| > this, the filter first steps by delta>>N (see fade_period_slew_shift); afterward it always moves ±1 toward the target. Stock cmp is 16, not 2^N−1, so threshold and shift are independent sliders."
+    },
+    "fade_period_slew_shift": {
+      "label": "Wheel-period slew shift",
+      "unit": "shift N",
+      "summary": "Bulk step size for SmoothWheelPeriodTargetWord when |delta| exceeds the slew threshold (stock N=4 → delta>>4).",
+      "notes": "SmoothWheelPeriodTargetWord: both asrs r3,#N sites at 0x100089E8 / 0x10008A04. Smaller N tracks wheel-pulse period changes faster (less filtering). Independent of ride_target_fade_delta because stock threshold 16 is not 2^N−1."
+    },
+    "ntc_adc_overrange": {
+      "label": "NTC ADC overrange",
+      "unit": "ADC counts",
+      "summary": "NTC ADC at or above this forces the lookup percent to the overrange value (stock 944). Capped at stock so hotter ADCs cannot skip the overrange percent.",
+      "notes": "LookupTemperatureAdcPercent: movs r1,#imm; lsls #4; if adc >= that, return the forced percent. Stock 0x3B<<4 = 944. Raising this above 944 lets ADCs between the old and new threshold fall through the table. The left-shift is fingerprint-locked."
+    },
+    "ntc_overrange_forced_percent": {
+      "label": "NTC overrange percent",
+      "unit": "percent",
+      "summary": "Percent written when NTC ADC is overrange (stock 60). Stock 60 sits in the thermal clear-protect band.",
+      "notes": "LookupTemperatureAdcPercent: movs r0,#imm after the 944 compare. Unique. Keep this in mind vs Thermal protect low/high bands."
+    },
+    "ride_protect_timeout_ticks": {
+      "label": "UART silence protect timeout",
+      "unit": "ticks",
+      "summary": "UART-silence counter at 0x200025A4 trips after this many ticks (stock 200). Separate from PWM idle shutdown and the throttle-ADC watchdog age saturate, which also use #0xC8.",
+      "notes": "IncrementUartSilenceProtectCounter ages 0x200025A4. cmp r0,#imm; above this, bit20 of 0x20002694 is cleared. Same immediate as PWM idle and UpdateThrottleAdcWatchdog age saturate; different RAM cell."
+    },
+    "pas4_foc_scale": {
+      "label": "PAS 4 FOC scale",
+      "unit": "%",
+      "summary": "FOC current cap for PAS 4 as a percent of max current (stock 90%). Independent IEEE double. PAS 1/3 high words are separate sliders; they share mantissa low-word 0x9999999A. PAS 2 is a shift, not a data word.",
+      "notes": "ApplyAssistLevelTargets PAS==4 multiplies max current by this little-endian double (stock 0.9). At stock 22 A the 6200 ride-current clamp already sits below 0.9× the derived ceiling, so this slider is inert until Ride current clamp is raised. Do not confuse with PAS 4 assist percent 85."
+    },
+    "throttle_adc_watchdog_age": {
+      "label": "Throttle-ADC watchdog age",
+      "unit": "ticks",
+      "summary": "How long the throttle-ADC watchdog age byte may increment before it saturates (stock 200). Keep at or above 160 so the lockout window can still close.",
+      "notes": "UpdateThrottleAdcWatchdog reads the throttle ADC cell 0x20002528. If the age byte < imm, increment. Third cmp #0xC8 in the image. Values below ~160 can leave the throttle lockout window open."
+    },
+    "throttle_adc_fault_age": {
+      "label": "Throttle-ADC fault age",
+      "unit": "ticks",
+      "summary": "Debounce for throttle ADC stuck above Throttle overrange (stock 100 ticks). Not a stale/missing-sample timer.",
+      "notes": "UpdateThrottleAdcWatchdog: cmp r0,#imm after the overrange age. Writes dwAssistBits 0x40000 on 0x20002690 when ADC > throttle_overrange for this many ticks. Not a missing-sample / stale-ADC timer."
+    },
+    "battery_voltage_window": {
+      "label": "Battery voltage window",
+      "unit": "ADC counts",
+      "summary": "OV-clear and UV-trip offset (stock 32 counts ≈ 0.68 V). Both subtract sites stay in sync.",
+      "notes": "UpdateBatteryVoltageMonitor: subs vs the over-voltage threshold at 0x10002DAC and vs the under-voltage threshold at 0x10002DC2. Not a current limiter. Skip battery voltage guards skips the flag branches but does not rewrite these immediates."
+    },
+    "battery_uv_recovery": {
+      "label": "Battery UV recovery",
+      "unit": "ADC counts",
+      "summary": "Added to the under-voltage threshold before clearing the UV latch (stock 93 counts ≈ 1.99 V).",
+      "notes": "UpdateBatteryVoltageMonitor: adds r0,#imm then cmp the averaged pack-voltage ADC. Unique adds #0x5D."
+    },
+    "wheel_pulse_high_timeout": {
+      "label": "Wheel-pulse stuck-high timeout",
+      "unit": "ticks",
+      "summary": "How long the P0.4 wheel-speed pin can stay high before the firmware treats the wheel as stopped (stock 2000 ticks).",
+      "notes": "UpdateWheelPulsePeriod: if P0.4 high-time > imm<<4, period saturates to the stopped value. Stock 0x7D<<4 = 2000. Falling edges also call ApplyWheelSpeedFade."
+    },
+    "wheel_pulse_stopped_period": {
+      "label": "Wheel-pulse stopped period",
+      "unit": "ticks",
+      "summary": "Period written when the P0.4 wheel-speed pin looks stopped (stock 4100). Larger means it waits longer before calling the wheel stopped.",
+      "notes": "Literal 0x00001004 used by UpdateWheelPulsePeriod. Low-time counter saturates here and the same value is written as the stopped period. The committed period is stored as period<<2 into a uint16, so values above 16383 wrap. This cell is also the UpdateDisplayWheelPeriodStatusBit operand."
+    },
+    "wheel_pulse_min_high_ticks": {
+      "label": "Wheel-pulse min high-time",
+      "unit": "ticks",
+      "summary": "Ignore very short P0.4 pulses (noise). Stock needs more than 7 ticks of high time before a wheel pulse counts.",
+      "notes": "UpdateWheelPulsePeriod: falling-edge period is committed only if high-time > this cmp. Stock 7 means a committed pulse needs at least 8 ticks."
+    },
+    "long_period_sample_gate_kmh": {
+      "label": "Long-period sample gate",
+      "unit": "period q5",
+      "summary": "Increments a sample counter when the P0.4 wheel-pulse period is longer than this value<<5 (stock 125 → 4000 ticks). Stopped saturate is 4100, so stock only counts near-stopped pulses. Encoded like the display-status period threshold, not a km/h wall. No external reader of the counter has been found — likely inert in stock.",
+      "notes": "CountLongWheelPulsePeriodSamples: movs r3,#imm; lsls #5 vs 0x20002590 (same period cell as Speed ceiling). Increments when period > threshold AND protect-bit<<29 is negative AND the sample-cap is not full. Counter at 0x200025C8 is only read/written here and zeroed by UpdateWheelPulsePeriod; no other recovered consumer (including RAM-aliased code). The left-shift is fingerprint-locked. Id suffix _kmh is historical; unit is period ticks after <<5."
+    },
+    "long_period_sample_cap": {
+      "label": "Long-period sample cap",
+      "unit": "samples",
+      "summary": "How many long-period samples that counter may accumulate (stock 1000). Caps CountLongWheelPulsePeriodSamples. Likely inert — no external reader of the counter has been found.",
+      "notes": "CountLongWheelPulsePeriodSamples: movs r2,#imm; lsls #3. Stock 0x7D<<3 = 1000. Same counter as long_period_sample_gate_kmh (0x200025C8); no recovered consumer outside this function. The left-shift is fingerprint-locked."
+    },
+    "skip_battery_voltage_guards": {
+      "label": "Bypass battery OV/UV flag branches",
+      "unit": "",
+      "summary": "Skip the battery over/under-voltage flag branches. The third site forces the raise path, but when avg is still below UV the limit can still fold back via (avg−UV)×2.",
+      "notes": "UpdateBatteryVoltageMonitor: three branch rewrites (0x10002DA4, 0x10002DC8, 0x10002E12). The first two bypass OV/UV flag stores. The third does not fully skip low-voltage foldback: forcing the raise path while avg < UV still adds (avg−UV)×2 and can wind the limit down. Soft window/recovery sliders still apply on unpatched builds."
+    },
+    "throttle_lockout_release": {
+      "label": "Throttle lockout release",
+      "unit": "ADC counts",
+      "summary": "Clears the throttle lockout when throttle ADC is below this (stock 840). Raise if a resting aftermarket throttle sits above 840 and never unlocks.",
+      "notes": "UpdateThrottleAdcWatchdog: movs r3,#imm; lsls #3 then cmp the throttle ADC at 0x20002528. Stock 0x69<<3 = 840. Else-if ADC < 840 clears assist bit 0x40000. Unique movs. The lsls #3 is fingerprint-locked."
+    },
+    "throttle_overrange": {
+      "label": "Throttle overrange",
+      "unit": "ADC counts",
+      "summary": "Stuck-high throttle ADC threshold (stock 3686). Above this the watchdog ages toward the fault bit.",
+      "notes": "UpdateThrottleAdcWatchdog unique literal DAT_10008998. If throttle ADC > this, the second age counter increments and at throttle_adc_fault_age sets dwAssistBits 0x40000. 12-bit ADC tops out at 4095."
+    },
+    "speed_fade_band_numerator": {
+      "label": "Speed-fade band numerator",
+      "unit": "",
+      "summary": "Fade-low = fade-high x numerator / divisor (stock 25). With stock 22 this starts the taper at cap x 22/25.",
+      "notes": "RebuildWheelSpeedFadeThresholds: movs r1,#imm then muls fade-high, then divide by speed_fade_band_divisor. Unique 19 21 at 0x100088AC. Not the ceiling movs r3,#0x19 or the torque-path 25<<5."
+    },
+    "speed_fade_band_divisor": {
+      "label": "Speed-fade band divisor",
+      "unit": "",
+      "summary": "Divisor of the fade-low rebuild (stock 22). Lower starts the taper sooner; 0 would fault the unsigned divide.",
+      "notes": "RebuildWheelSpeedFadeThresholds unique movs r1,#0x16 at 0x100088B0 after muls r0,r1. Pair with speed_fade_band_numerator. The muls 48 43 is fingerprint-locked."
+    },
+    "brake_debounce_depth": {
+      "label": "Brake debounce depth",
+      "unit": "samples",
+      "summary": "How many matching samples DebounceBrakeInput needs before the lever is taken as pressed (stock 3, so 4 stable reads).",
+      "notes": "DebounceBrakeInput: cmp r1,#imm; if count > imm return the latched level. Unique cmp #3. Lower trips faster; higher ignores short glitches. Active-low PORT0.10."
+    },
+    "pas1_foc_scale": {
+      "label": "PAS 1 FOC scale",
+      "unit": "%",
+      "summary": "FOC current cap for PAS 1 as a percent of max current (stock 40%). High word only; shared mantissa 0x9999999A is locked. Valid percents are 10/20/40/80/160.",
+      "notes": "ApplyAssistLevelTargets PAS==1 multiplies max current by the double (mantissa at 0x10002FD0, this high word). Not the PAS 1 assist percent 30. Encoding rejects values whose IEEE low word would differ from the shared mantissa. At stock 22 A / 6200 clamp this 40% cap is the live PAS 1 FOC ceiling; PAS 3/4 stay clamp-limited."
+    },
+    "pas3_foc_scale": {
+      "label": "PAS 3 FOC scale",
+      "unit": "%",
+      "summary": "FOC current cap for PAS 3 as a percent of max current (stock 80%). High word only; shared mantissa 0x9999999A is locked. Valid percents are 10/20/40/80/160.",
+      "notes": "ApplyAssistLevelTargets PAS==3 uses (DAT_10002fd0, this word). Independent of pas1_foc_scale aside from the locked mantissa. At stock 22 A the 6200 ride-current clamp already sits below 0.8× the derived ceiling, so raising this is inert until Ride current clamp is raised."
+    },
+    "pack_uv_cutoff_v": {
+      "label": "Pack UV cutoff",
+      "unit": "V",
+      "summary": "Pack under-voltage cutoff copied by LoadMotorScaleDefaults (stock 41.0 V). Soft foldback plus hard UV still use the ADC window/recovery sliders.",
+      "notes": "Float32 41.0 at 0x10003A24; unique ldr from LoadMotorScaleDefaults into the scale table. UpdateBatteryVoltageMonitor compares averaged pack ADC against the derived UV threshold. Pair with Battery voltage window (+/-32 counts) and Battery UV recovery (+93)."
+    },
+    "pack_nominal_v": {
+      "label": "Pack nominal voltage",
+      "unit": "V",
+      "summary": "Nominal pack voltage used as the Q14 voltage-ratio divisor (stock 48.0 V). Keep this near the real pack; far values skew every derived current limit.",
+      "notes": "Float32 48.0 at 0x10003A10; unique ldr in LoadMotorScaleDefaults. ComputeDerivedScaleTables / UpdateBatteryVoltageMonitor divide avg<<14 by the 48 V scale. Narrow band because it feeds many derived cells."
+    },
+    "pack_max_current_a": {
+      "label": "Pack max current",
+      "unit": "A",
+      "summary": "Scale-table max current setpoint (stock 22.0 A). High risk: derived signed-16 cells wrap above ~71 A. Can overheat the controller.",
+      "notes": "Float32 22.0 at 0x10003A18; unique ldr in LoadMotorScaleDefaults into the scale table. ComputeMotorScaleTables converts it into g_wMaxCurrentSetpoint (stock ≈10147 counts; sxth wraps above ~71 A). Cap 30 A stays well under the wrap. Ride current clamp is a separate int16 override from the fixed 6200.0 float. Raising this alone mainly lifts PAS FOC caps that are fractions of max current; the ride-loop 6200 clamp still binds until Ride current clamp is raised."
+    },
+    "torque_sensor_gain_eighths": {
+      "label": "Torque sensor gain",
+      "unit": "eighths",
+      "summary": "Scales every PAS torque demand as (delta>>a)+(delta>>b) eighths (stock 3 = 3/8). Must be a sum of two powers of two.",
+      "notes": "CalculateTorqueAssistCurrent: asrs #2 + asrs #3 then adds, stored to the torque-delta cell. Stock 3/8 of (ADC-offset). Encoder writes two Thumb asrs imm5 that sum to this many eighths. Values like 7 (three bits) are rejected."
+    },
+    "walk_assist_fraction_sixteenths": {
+      "label": "Walk current fraction",
+      "unit": "sixteenths",
+      "summary": "Walk assist current as this many sixteenths of full current (stock 3 = 3/16). Caps walk when below the 450 walk-assist target.",
+      "notes": "ApplyAssistLevelTargets PAS==6: asrs #3 + asrs #4 of g_wFullCurrentLimit into g_wAssistCurrentTarget. Stock 3/16. Inert at stock because 3/16 of 6200 is above the 450 walk target; it only clamps if Ride current clamp is below about 2400. Must be a sum of two powers of two. Separate walk FOC cap walk_foc_scale_sixteenths (stock 1/16 of max current) is independent."
+    },
+    "pack_ov_cutoff_v": {
+      "label": "Pack OV cutoff",
+      "unit": "V",
+      "summary": "Pack over-voltage cutoff copied by LoadMotorScaleDefaults (stock 65.0 V). Unique float; the 64.0f store in the same function is a separate seed.",
+      "notes": "Float32 65.0 at 0x10003A28; unique ldr from LoadMotorScaleDefaults. UpdateBatteryVoltageMonitor trips OV using the derived threshold into 0x200025F0. Soft window/recovery sliders still apply. Do not confuse with the hardcoded 64.0f written beside this pool."
+    },
+    "overload_cutout_arm_ticks": {
+      "label": "Overload cutout arm time",
+      "unit": "ticks",
+      "summary": "How long the ride loop must see protect-bit 2 before the shunt overload compare can cut out (stock 800 ticks).",
+      "notes": "RunRideControlLoop: movs r1,#imm; lsls #5; if the 0x200025A8 counter is above that AND shunt > 641+overload_cutout_margin, set dwAssistBits bit 2 and DisableMotorOutput. Left-shift is fingerprint-locked. Pair with Pack max current."
+    },
+    "overload_cutout_margin": {
+      "label": "Overload cutout margin",
+      "unit": "shunt counts",
+      "summary": "Added to the 641 baseline before overload cutout (stock 49 → first trip at 691). Units are the 8-sample shunt average cell, not proven amperes.",
+      "notes": "RunRideControlLoop unique adds r1,#imm onto literal 641 at 0x10003438. Strict compare is 641+this < cell at 0x20002584 (8-sample average from CalculateTwoShuntPhaseCurrents; display current byte is that cell>>6). Stock first trips at 691. Max imm 255 → trip at 896 counts. Ampere equivalence is unverified — do not treat this as a calibrated amp slider. Does not rewrite the 22.0 A scale-table float."
+    },
+    "throttle_ramp_down_bulk_threshold": {
+      "label": "Throttle ramp-down bulk threshold",
+      "unit": "firmware current units",
+      "summary": "Downward throttle-target errors larger than this use the bulk asrs path instead of −1 per tick (stock 15).",
+      "notes": "RunRideControlLoop throttle slew: cmp r2,#imm before asrs. Pair with throttle_ramp_down_shift so the threshold stays near 2^N−1 for a smooth hand-off."
+    },
+    "throttle_ramp_down_shift": {
+      "label": "Throttle ramp-down shift",
+      "unit": "shift N",
+      "summary": "Bulk throttle ramp-down step is delta>>N when above the bulk threshold (stock N=4 → /16).",
+      "notes": "RunRideControlLoop throttle path: asrs r2,#N after cmp vs throttle_ramp_down_bulk_threshold. Larger N = slower release. Keep the bulk threshold near 2^N−1."
+    },
+    "throttle_ramp_up_bulk_threshold": {
+      "label": "Throttle ramp-up bulk threshold",
+      "unit": "firmware current units",
+      "summary": "Upward throttle-target errors larger than this use the bulk asrs path instead of +1 per tick (stock 31).",
+      "notes": "RunRideControlLoop throttle slew: cmp r2,#imm before asrs. Pair with throttle_ramp_up_shift so the threshold stays near 2^N−1 for a smooth hand-off."
+    },
+    "throttle_ramp_up_shift": {
+      "label": "Throttle ramp-up shift",
+      "unit": "shift N",
+      "summary": "Bulk throttle ramp-up step is delta>>N when above the bulk threshold (stock N=5 → /32).",
+      "notes": "RunRideControlLoop throttle path: asrs r2,#N after cmp vs throttle_ramp_up_bulk_threshold. Smaller N = snappier throttle. Keep the bulk threshold near 2^N−1."
+    },
+    "current_headroom_deadband": {
+      "label": "Current headroom deadband",
+      "unit": "firmware current units",
+      "summary": "Current limit must exceed measured current by this before headroom steps are generated (stock 70).",
+      "notes": "UpdateCurrentHeadroomSlew: adds #imm and matching subs #imm sites (0x10002A38 / 0x10002A42). Headroom steps = (limit-measured-imm)>>5 when limit > measured+imm."
+    },
+    "current_headroom_slew_cap": {
+      "label": "Current headroom slew cap",
+      "unit": "level",
+      "summary": "Caps the byte-sized current-headroom/slew level (stock 12).",
+      "notes": "UpdateCurrentHeadroomSlew: cmp #imm and movs #imm clamp sites (0x10002A7A / 0x10002A7E). Patched together so the compare and the saturating store stay equal."
+    },
+    "uart_min_wheel_code": {
+      "label": "Display wheel-code accept floor",
+      "unit": "wheel code",
+      "summary": "Changed wheel-size codes are accepted only when greater than this (stock 5). Pair with the display speed accept floor.",
+      "notes": "ParseDisplayUartFrame: cmp wheel_code,#imm before storing live wheel/speed. A changed valid wheel code also opens the speed-store path even when speed ≤ uart_min_display_speed_kmh."
+    },
+    "walk_foc_scale_sixteenths": {
+      "label": "Walk FOC scale",
+      "unit": "sixteenths",
+      "summary": "Walk FOC current cap as a power-of-two fraction of max current in sixteenths (stock 1 = 1/16). Independent of the walk ride-current fraction.",
+      "notes": "ApplyAssistLevelTargets PAS==6: lsls r0,#imm; lsrs r0,#16 of g_wMaxCurrentSetpoint into g_wScaledAssist. Stock lsl #12 → >>4 = 1/16. Valid values 1/2/4/8 (lsl 12/13/14/15). Does not change walk_assist_fraction_sixteenths or the 450 walk target."
+    },
+    "pas_inactivity_timeout": {
+      "label": "PAS inactivity timeout",
+      "unit": "ticks",
+      "summary": "Clears cadence timing and the PAS-active assist bit after this many unchanged pedal-sensor samples (stock 1000).",
+      "notes": "DecodePasCadencePulseEdges: movs r7,#imm; lsls #3; while channel A is unchanged the counter rises to this, then clears timing state and assist bit 0x800. Left-shift is fingerprint-locked."
+    },
+    "pas_pulse_timeout": {
+      "label": "PAS pulse timeout",
+      "unit": "ticks",
+      "summary": "Maximum high or low pedal-pulse duration before cadence is invalidated (stock 1500). Trips when the count exceeds this.",
+      "notes": "DecodePasCadencePulseEdges: unique literal compared against both high-time and low-time pulse counters. On trip clears assist bit 0x800 and resets timing words."
+    },
+    "pas_engage_pulse_count": {
+      "label": "PAS engage pulse count",
+      "unit": "edges",
+      "summary": "Consistent pedal edges required before cadence is accepted (stock 2 → third qualifying edge publishes timing).",
+      "notes": "DecodePasCadencePulseEdges: cmp r6,#imm on the rising-edge qualifier counter. Below the threshold the counter increments; at/above it publishes pulse timing and sets assist bit 0x800."
+    },
+    "torque_adc_rise_window": {
+      "label": "Torque ADC rise window",
+      "unit": "ticks",
+      "summary": "How often DecodePasCadencePulseEdges samples torque-ADC rise into 0x200025A8 (stock 50 ticks).",
+      "notes": "Tail of DecodePasCadencePulseEdges: while the counter != this, increment and return; on equality store max(0, torqueADC−previous) to 0x200025A8 and reset. Feeds torque_slope_engage_delta — not a PAS cadence-edge timer."
+    },
+    "torque_offset_drop_threshold": {
+      "label": "Torque offset drop threshold",
+      "unit": "ADC counts",
+      "summary": "If live torque ADC falls more than this below the learned zero, automatic offset relearning starts (stock 80).",
+      "notes": "LearnTorqueOffsetAndFaults: if adc < learned && (learned-adc) > imm, the relearn counter advances. Pair with torque_offset_relearn_count."
+    },
+    "torque_offset_relearn_count": {
+      "label": "Torque offset relearn count",
+      "unit": "samples",
+      "summary": "Consecutive below-offset samples required before the learned torque zero is replaced (stock 100).",
+      "notes": "LearnTorqueOffsetAndFaults: both cmp #imm sites (0x10007F90 cap, 0x10007F9A apply). Counter must reach this before *learnedOffset = adcSample."
+    },
+    "battery_average_sample_count": {
+      "label": "Battery average sample count",
+      "unit": "samples",
+      "summary": "Battery monitor runs when the sample counter reaches this (stock 16). Averaging uses >>4 at stock; large changes desync the shift.",
+      "notes": "UpdateBatteryVoltageMonitor: cmp sample_count,#imm before averaging. Stock 16 matches the >>4 mean. Changing far from a power of two without a matching shift rewrite skews the average."
+    },
+    "battery_uv_predebounce": {
+      "label": "Battery UV pre-debounce",
+      "unit": "samples",
+      "summary": "How long average voltage must stay below UV−window before the secondary UV latch counter advances (stock 5).",
+      "notes": "UpdateBatteryVoltageMonitor: first UV debounce cmp #imm after the battery_voltage_window subtract. Pair with battery_uv_latch_threshold."
+    },
+    "battery_uv_latch_threshold": {
+      "label": "Battery UV latch threshold",
+      "unit": "samples",
+      "summary": "Secondary UV counter threshold before the under-voltage latch sets (stock 3).",
+      "notes": "UpdateBatteryVoltageMonitor: cmp on the secondary UV counter after battery_uv_predebounce. Lower trips UV faster; higher tolerates brief dips."
+    },
+    "hall_advance_high_threshold": {
+      "label": "Hall advance high threshold",
+      "unit": "hall rate",
+      "summary": "Hall-rate above which the largest startup hall-angle advance is used (stock 3000).",
+      "notes": "ProcessHallAngleAdvance first band: if hall rate > this literal, add hall_advance_high. Mid/low thresholds are separate movs<<N sliders; low-band advance amount is coupled to hall_advance_mid_threshold."
+    },
+    "hall_advance_high": {
+      "label": "Hall advance high",
+      "unit": "Q16 electrical",
+      "summary": "Electrical-angle advance applied above the high threshold (stock 5000 ≈ 27.5°). Wrong values jerk at takeoff.",
+      "notes": "ProcessHallAngleAdvance: added to LookupHallCommutationAngle when hall rate > hall_advance_high_threshold. Q16 turns; 65536 ≈ 360°."
+    },
+    "hall_advance_medium": {
+      "label": "Hall advance medium",
+      "unit": "Q16 electrical",
+      "summary": "Electrical-angle advance for the mid hall-rate band (stock 3500 ≈ 19.2°).",
+      "notes": "ProcessHallAngleAdvance else-branch add when rate is above hall_advance_mid_threshold and not above hall_advance_high_threshold. Low-band +advance shares the mid-threshold immediate."
+    },
+    "pas2_foc_scale": {
+      "label": "PAS 2 FOC scale",
+      "unit": "halvings",
+      "summary": "PAS 2 FOC current cap as max_current / 2^n (stock 1 → 50%). Uses ScaleDoubleByPowerTwo, not a soft-float data word.",
+      "notes": "ApplyAssistLevelTargets PAS==2: movs r2,#(n-1); mvns r2,r2 → ScaleDoubleByPowerTwo(..., -n). Stock movs #0; mvns → -1 → half of max current. Valid n 1–4 (50%/25%/12.5%/6.25%). The mvns halfword is fingerprint-locked. At stock 22 A / 6200 clamp this 50% cap is often the live PAS 2 FOC ceiling."
+    },
+    "fade_throttle_adc_low": {
+      "label": "Fade throttle ADC low edge",
+      "unit": "ADC offset",
+      "summary": "Low edge of the throttle-in-window test inside ApplyWheelSpeedFade (stock −1241). Separate from the ride-loop Throttle ADC low edge slider.",
+      "notes": "ApplyWheelSpeedFade unique literal at 0x100089B8. Window is abs(this) through fade_throttle_adc_high. The ride-loop / PAS-full −1241 at 0x100033E4 is throttle_adc_low and is not this word. Raise both when fitting an aftermarket throttle whose rest ADC sits above the stock window."
+    },
+    "fade_throttle_adc_high": {
+      "label": "Fade throttle ADC high edge",
+      "unit": "ADC counts",
+      "summary": "High edge of the throttle-in-window test inside ApplyWheelSpeedFade (stock 2679 = 2731−52). Aligns with PAS-full throttle span at stock.",
+      "notes": "ApplyWheelSpeedFade: ldr lit 2731 from 0x10008980 then subs r6,#imm. Stock imm 0x34 → 2679, matching throttle_pas_full_span. The 2731 pool word is also ParseDisplayUartFrame command 0x08 and must stay locked; only this subtract is patched. Effective high = 2731−imm."
+    },
+    "protect_assist_clear_ticks": {
+      "label": "Protect assist-bit clear delay",
+      "unit": "ticks",
+      "summary": "After overload/protect cutout ends, how long before assist bit 0x20 is cleared (stock 500 ticks).",
+      "notes": "RunRideControlLoop: when protect is inactive, counter at 0x200025A8 rises; above 255+imm clears dwAssistBits bit 0x20. Stock 0xF5 → 500. Separate from Overload cutout arm time (800) which gates the trip."
+    },
+    "uart_frame_byte0_timeout": {
+      "label": "UART frame byte0 timeout",
+      "unit": "ticks",
+      "summary": "While UART RX buffer byte0 at 0x200025C4 is nonzero, clear it after this many timeslice ticks (stock 1000). Not a motor-stall timer.",
+      "notes": "DispatchMotorControlTimeslice: cell 0x200025C4 is also the ParseDisplayUartFrame RX frame base (byte0 = command index). While nonzero, increment a timer; at >= imm<<3 store 0. Stock 0x7D<<3 = 1000. Formerly mislabeled motor_stall_flag_timeout — no stall relation found. Sensorless Clarke/SVM stall code remains unreachable."
+    },
+    "torque_hold_engage_ticks": {
+      "label": "Torque hold engage ticks",
+      "unit": "ticks",
+      "summary": "Minimum torque-hold counter before the torque-assist confirm path can run (stock 400).",
+      "notes": "UpdateFocHandoverState: movs #255; adds #imm; cmp hold-count. Stock 0x91 → 400. Paired with Torque engage current floor (900) and the locked torque-path 25<<5 speed compare."
+    },
+    "torque_engage_current_floor": {
+      "label": "Torque engage current floor",
+      "unit": "firmware current units",
+      "summary": "Published current target must exceed this before torque-assist confirm advances (stock 900).",
+      "notes": "UpdateFocHandoverState: movs r2,#imm; lsls #2 vs wPublishedCurrentTarget. Stock 0xE1<<2 = 900. Unique movs #0xE1 in this function."
+    },
+    "torque_release_period_threshold": {
+      "label": "Torque release FOC product",
+      "unit": "Q15 product",
+      "summary": "Clears torque-assist bit 0x10 when the FOC Q15 torque product at 0x20002AC0 falls below this (stock 600).",
+      "notes": "UpdateFocHandoverState: movs #0x4B; lsls #3; ldrsh from ProcessFocCurrentControlIsr's Q15 product (torque×scale>>15 at 0x20002AC0). Not a wheel-pulse period. Same 75<<3 encoding as the fade floor but a different site. Id kept for compatibility."
+    },
+    "torque_confirm_count": {
+      "label": "Torque confirm count",
+      "unit": "samples",
+      "summary": "How many consecutive in-window torque confirms are required before assist bit 0x10 latches (stock 2 → third confirm).",
+      "notes": "UpdateFocHandoverState: after the event-count gate, increments wTorqueConfirmCount and cmp #imm; when count > imm, clears counters and ors dwAssistBits 0x10. Unique cmp #2 in this function."
+    },
+    "torque_event_count_cap": {
+      "label": "Torque event count cap",
+      "unit": "events",
+      "summary": "Saturating cap on the torque-event counter that must fill before confirm samples run (stock 10).",
+      "notes": "UpdateFocHandoverState: cmp #imm and matching movs #imm store (0x1000835C / 0x10008360). Patched together so the compare and the saturating store stay equal. Below the cap the confirm path does not run."
+    },
+    "pas_pulse_asymmetry_gate": {
+      "label": "PAS pulse asymmetry gate",
+      "unit": "ticks",
+      "summary": "Minimum published high+low pedal period before the asymmetry glitch check can clear cadence (stock 5).",
+      "notes": "DecodePasCadencePulseEdges: if (prev_period*2 < high+low) AND (published_period > imm) AND prev_period != 0, clear assist bit 0x800 and timing words. Unique cmp #5 in this function. Lower rejects glitchy PAS edges sooner; higher tolerates uneven magnet spacing."
+    },
+    "foc_pi_kp": {
+      "label": "FOC inner PI Kp seed",
+      "unit": "Q15 gain",
+      "summary": "Proportional gain for the inner d/q current PI blocks at init (stock 400). Not the outer current-loop Kp.",
+      "notes": "LoadMotorScaleDefaults: movs #255; adds #imm; strh to 0x200025D4. InitializeFocPiControllers copies that halfword into PI blocks A/B Kp. The same register is then lsls #1 into unread 0x200025D8 (800) — patching Kp also changes that dead init word. Outer-loop gain is foc_outer_pi_kp (4864)."
+    },
+    "foc_pi_ki": {
+      "label": "FOC inner PI Ki seed",
+      "unit": "Q15 gain",
+      "summary": "Integral gain for the inner d/q current PI blocks at init (stock 2). Not the outer current-loop Ki.",
+      "notes": "LoadMotorScaleDefaults: movs r2,#imm; strh to unread +2 then later strh to 0x200025D6. InitializeFocPiControllers copies 0x200025D6 into PI blocks A/B Ki. Outer-loop Ki is foc_outer_pi_ki (16)."
+    },
+    "foc_outer_pi_kp": {
+      "label": "FOC outer PI Kp",
+      "unit": "Q12 gain",
+      "summary": "Outer current-loop proportional gain (stock 4864 = 0x13<<8 ≈ 1.19 in Q12). Runs about every foc_pi_update_interval ISRs.",
+      "notes": "LoadMotorScaleDefaults: movs #imm; lsls #8; strh to 0x200025D0. InitializeFocPiControllers copies that into PI block C Kp. ProcessFocCurrentControlIsr calls UpdateFixedPointPiOutput on block C every foc_pi_update_interval. High risk — keep near 50–200% of stock. Separate from foc_pi_kp (inner 400)."
+    },
+    "foc_outer_pi_ki": {
+      "label": "FOC outer PI Ki",
+      "unit": "Q12 gain",
+      "summary": "Outer current-loop integral gain (stock 16). Pair with FOC outer PI Kp.",
+      "notes": "LoadMotorScaleDefaults: movs #imm; strh to 0x200025D2. InitializeFocPiControllers copies into PI block C Ki. Same ~1 kHz path as foc_outer_pi_kp. Raising winds the outer integrator faster; keep small relative to Kp."
+    },
+    "foc_vq_limit_floor": {
+      "label": "FOC Vq limit floor",
+      "unit": "Q12 voltage counts",
+      "summary": "While SVM is saturated, the q-axis voltage clamp walks down 1 count per PWM period to this floor (stock 3000). 4095 disables the walk-down.",
+      "notes": "CalculateFocParkInverseSvm: when status bit29 is set (ComputeSpaceVectorPwmDuties over-modulation), if Vq limit > this, subtract 1/ISR; else grow toward 4095. Bit29 is set/cleared live. Ceiling literal 0xfff matches the init limit and is not exposed."
+    },
+    "pwm_rearm_delay_isr_ticks": {
+      "label": "PWM re-arm delay",
+      "unit": "PWM-ISR ticks",
+      "summary": "ISR ticks that must elapse after PWM disable before EnableMotorPwmWhenReady may re-enable (stock 6000 ≈ 0.38 s at 15.6 kHz).",
+      "notes": "EnableMotorPwmWhenReady: enable only when counter 0x200025E0 > this literal. Counter zeroes in DisableMotorOutput and increments once per FOC ISR, saturating at 16000. Must stay below 16000 or PWM never re-arms."
+    },
+    "hall_torque_sample_limit": {
+      "label": "Hall torque-angle sample limit",
+      "unit": "ISR samples",
+      "summary": "How long ProcessHallAngleAdvance may stay in the torque-advance path before forcing a hall re-latch (stock 4000).",
+      "notes": "LoadMotorScaleDefaults: movs #imm; lsls #5; strh to 0x200025DC. ProcessHallAngleAdvance (live FOC ISR callee) compares the sample counter to that halfword and, when exceeded, re-reads hall bits, ApplyHallSectorPwmPattern, and reapplies hall_angle_offset. Sibling unread scale halfwords 800/600 at +0xC/+0xE have zero recovered readers and are not exposed."
+    },
+    "motor_running_current_floor": {
+      "label": "Motor-running current floor",
+      "unit": "firmware current units",
+      "summary": "Filtered shunt-current average at 0x20002584 must be strictly above this before the motor-running debounce can count up (stock 600).",
+      "notes": "UpdateMotorRunningDebounce: movs #imm; lsls #3; cmp r4,r7; ble skip — arming requires current > floor (signed), not >=. Cell 0x20002584 is the 8-sample shunt average from CalculateTwoShuntPhaseCurrents (also zeroed on PWM enable/disable). UpdateDisplayWheelPeriodStatusBit additionally asrs>>6 the same halfword into a display TX speed byte — it is not a wheel-pulse period. Pair with motor_running_period_gate."
+    },
+    "motor_running_period_gate": {
+      "label": "Motor-running period gate",
+      "unit": "period ticks",
+      "summary": "P0.4 wheel-pulse period must stay below this for the motor-running flag to arm (stock 4000). Debounce depth is this value >> 3 (stock 500).",
+      "notes": "UpdateMotorRunningDebounce: movs #imm; lsls #5 vs 0x20002590 (same period cell as Speed ceiling / Long-period gate). The arming debounce compare uses asrs of the same register (imm<<5>>3 = imm<<2; stock 500). Patching this therefore scales both the period gate and the debounce depth together. Near the stopped saturate 4100."
+    },
+    "foc_pi_update_interval": {
+      "label": "FOC PI update interval",
+      "unit": "ISR loops",
+      "summary": "How many FOC ISR loops between fixed-point PI updates (stock 16).",
+      "notes": "ProcessFocCurrentControlIsr: loop counter at motor-state+0x10; when >= this, reset and call UpdateFixedPointPiOutput. Lower updates the outer PI more often (more CPU)."
+    },
+    "foc_duty_bulk_step_threshold": {
+      "label": "FOC duty bulk-step threshold",
+      "unit": "firmware current units",
+      "summary": "Upward FOC duty errors larger than this step by delta>>5 instead of +1 (stock 31).",
+      "notes": "ProcessFocCurrentControlIsr: cmp duty-delta,#imm; bls fine +1 path, else lsrs #5 bulk path. Sibling of the throttle ramp-up bulk threshold but on the FOC duty integrator."
+    },
+    "torque_sensor_fault_adc_low": {
+      "label": "Torque sensor fault ADC low",
+      "unit": "ADC counts",
+      "summary": "Torque ADC below this after the learn delay sets sensor-fault bit 2 / error 6 and cancels assist (stock 245).",
+      "notes": "LearnTorqueOffsetAndFaults / LearnTorqueOffsetAndFaults: after sample count > 0x5F0, cmp adc,#imm. Unique imm8. Raising hides a shorted/disconnected sensor; lowering trips more easily on noise."
+    },
+    "torque_sensor_fault_adc_high": {
+      "label": "Torque sensor fault ADC high",
+      "unit": "ADC counts",
+      "summary": "Upper torque-ADC fault limit during the 16-tick post-learn window (stock 2867 = 3000−133).",
+      "notes": "LearnTorqueOffsetAndFaults: ldr lit 3000 then subs r1,#imm; fault if adc > 3000−imm in the count+offset < 16 window. Pool word 0x100080D0 is also the 3000-tick re-zero timer — only patch this subtract. Effective high = 3000−imm."
+    },
+    "torque_assist_rise_shift": {
+      "label": "Torque assist rise shift",
+      "unit": "shift N",
+      "summary": "Per-tick rise toward torque-assist target uses delta>>N when delta > 2^N−1 (stock N=3). Larger N = slower build-up.",
+      "notes": "CalculateTorqueAssistCurrent: cmp #2^N−1 then lsrs #N into the rise step (else +1). Patches both the compare and the lsrs imm5."
+    },
+    "torque_assist_fall_shift": {
+      "label": "Torque assist fall shift",
+      "unit": "shift N",
+      "summary": "Decay step toward the torque-assist target uses delta>>N when delta > 2^N−1 (stock N=2). Larger N = longer assist tail.",
+      "notes": "CalculateTorqueAssistCurrent fall path: cmp #2^N−1 then lsrs #N. Independent of the rise shift."
+    },
+    "torque_adc_slew_shift": {
+      "label": "Torque ADC slew shift",
+      "unit": "shift N",
+      "summary": "How aggressively the ride loop slews the 4-sample torque ADC average into 0x20002710 (stock N=5 → step delta>>5 when |delta|>31).",
+      "notes": "RunRideControlLoop: two mirror arms each cmp #2^N−1 then asrs #N. All four sites stay in sync. Smaller N tracks pedal torque faster (more noise)."
+    },
+    "assist_ramp_up_shift": {
+      "label": "Assist ramp-up shift",
+      "unit": "shift N",
+      "summary": "How fast wCurrentTarget rises toward the full-current assist limit when cadence/torque flags are set (stock N=4 → step delta>>4 when delta>15).",
+      "notes": "RunRideControlLoop assist branch (cadence bit11 + torque flag bit3): cmp #2^N−1 then asrs #N into wCurrentTarget, then min with g_wAssistCurrentTarget. Runs every 4th ride pass. Larger N = softer onset."
+    },
+    "assist_ramp_down_shift": {
+      "label": "Assist ramp-down shift",
+      "unit": "shift N",
+      "summary": "How fast wCurrentTarget falls when the alt full-current limit drops below the live target (stock N=4). Pedal release uses a separate halve-per-pass path.",
+      "notes": "RunRideControlLoop assist branch down arm: cmp #2^N−1 then asrs #N. Rarely taken because alt is normally the constant full-current limit; visible mainly when thermal/ride clamps lower that limit."
+    },
+    "torque_slope_engage_delta": {
+      "label": "Torque-slope engage delta",
+      "unit": "ADC counts",
+      "summary": "Minimum torque-ADC rise in one sample window that can wake assist below the static deadband (stock 30).",
+      "notes": "CalculateTorqueAssistCurrent: assist engages when adc > offset+deadband OR (cadence bit11 and (torque flag already set OR 0x200025A8 > this)). 0x200025A8 is written by DecodePasCadencePulseEdges once per torque_adc_rise_window. Lower values engage on smaller pedal pushes (more twitch)."
+    },
+    "wheel_period_constant_k": {
+      "label": "Wheel-period fade constant K",
+      "unit": "period ticks",
+      "summary": "Rebuilds fade-hi period as wheel_code×K/speed (stock K=573 = 819−246). Acts as a speed-calibration scale for when fade starts.",
+      "notes": "RebuildWheelSpeedFadeThresholds: ldr lit 819 from 0x10008994 then subs #imm. Pool word is also the throttle-lockout trip compare at 0x10008780 — only patch this subtract. Effective K = 819−imm."
+    },
+    "hall_fault_debounce": {
+      "label": "Hall fault debounce",
+      "unit": "invalid reads",
+      "summary": "Invalid hall codes 0/7 may accumulate above this before fault code 10 latches (stock 3). Counter resets only on the PWM-idle path.",
+      "notes": "RunRideControlLoop: byte at 0x200025BF; cmp #imm then set flags+4 bit23. Raising hides hall wiring faults; not a consecutive-only debounce."
+    },
+    "fault_report_debounce": {
+      "label": "Fault-code report debounce",
+      "unit": "polls",
+      "summary": "Display fault codes stay suppressed for this many consecutive UpdateMotorFaultCode polls (stock 30). Direct protect-bit motor cuts are unaffected.",
+      "notes": "UpdateMotorFaultCode: while code!=0 and counter 0x200025CA < this, force the reported code to 0 and increment. RunRideControlLoop / EnableMotorPwmWhenReady gate on the reported byte at 0x20002B05. 0 reports every fault instantly; large values delay display-error motor cuts."
+    },
+    "hall_advance_mid_threshold": {
+      "label": "Hall advance mid threshold",
+      "unit": "hall rate",
+      "summary": "Hall-rate band edge for the medium advance (stock 2000 = 125<<4). Also supplies the coupled low-band +2000 advance amount.",
+      "notes": "ProcessHallAngleAdvance: movs #imm; lsls #4. Rate bands: >high_thr → +high, >this → +medium, >low_thr → +this same register value, else 0. Changing this moves both the mid boundary and the low-band advance magnitude."
+    },
+    "hall_advance_low_threshold": {
+      "label": "Hall advance low threshold",
+      "unit": "hall rate",
+      "summary": "Lower edge of the low hall-advance band (stock 1000 = 125<<3). No amount coupling on this immediate.",
+      "notes": "ProcessHallAngleAdvance: movs #imm; lsls #3. Unique from the mid-threshold encoding. Keep below hall_advance_mid_threshold."
+    },
+    "foc_throttle_gate_base": {
+      "label": "FOC throttle gate base",
+      "unit": "ADC counts",
+      "summary": "FOC ISR throttle-in-window low edge (stock 1240). When ADC is in-window and PAS≠0 the ISR skips the torque-demand cap. Separate from Throttle ADC low edge.",
+      "notes": "ProcessFocCurrentControlIsr: movs #imm; lsls #3 → stock 0x9B<<3=1240 (=0x4D8). Span literal 0x939 is shared with a 2300-tick hold timer and is not exposed. Align with throttle_adc_low (~1241) when retuning the handlebar window."
+    }
+  },
+  "encode.negExp": "{label} must be an exponent 1–4 (max current / 2^n)",
+  "encode.subsFromLiteral": "{label} must keep {base}-value in 0–255",
+  "download.needFile": "Load a matching stock HEX to download.",
+  "download.noChanges": "Change a field to download a patched HEX.",
+  "download.changes": "{count} mapped change(s).",
+  "fields.stockDerived": "Stock (derived)",
+  "fields.min": "Min",
+  "fields.max": "Max",
+  "advanced.filter": "Filter advanced fields",
+  "advanced.allGroups": "All groups",
+  "flash.how": "How to flash",
+  "footer.techNotes": "Technical notes",
+  "lang.label": "Language",
+  "hexviz.legend.stock": "Matches stock",
+  "hexviz.replace": "Replace file",
+  "hexviz.modeGroup": "Display mode",
+  "editor.needFile": "Load a matching stock HEX to apply presets and edit fields.",
+  "compare.needOther": "Load the other file to compare.",
+  "compare.pair": "{a} vs {b}",
+  "compare.valueCol": "Decoded",
+  "compare.identicalTitle": "Identical",
+  "status.patchError": "Could not patch: {message}",
+  "diff.bytesCol": "Bytes"
+}

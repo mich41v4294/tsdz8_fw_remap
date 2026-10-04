@@ -47,7 +47,7 @@ Shared flags: `--device` (default `XMC1302-T038x0064`), `--speed` (kHz, default 
 ## Tests (no hardware)
 
 ```bash
-python3 -m unittest tools.jlink_flasher.test_hexio tools.jlink_flasher.test_probe tools.jlink_flasher.test_cli
+python3 -m unittest tools.jlink_flasher.test_hexio tools.jlink_flasher.test_probe tools.jlink_flasher.test_cli tools.test_firmware_map
 ```
 
 Live J-Link tests are not in CI. Set nothing special; attach a probe and run `info` yourself.

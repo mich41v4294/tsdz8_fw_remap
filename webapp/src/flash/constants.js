@@ -37,6 +37,6 @@ export const CAP_SET_KS_POWER = 13;
 export const CAP_SELECT_TIF = 17;
 export const CAP_GET_EXT_CAPS = 31;
 
-export function idchipField(word: number): number {
+export function idchipField(word) {
   return (word >>> 8) & 0xffff;
 }

@@ -1,32 +1,27 @@
 @echo off
 setlocal
 cd /d "%~dp0webapp"
+set PORT=8080
 
-where node >nul 2>&1
-if errorlevel 1 (
-  echo Node.js is not installed or not on PATH.
-  echo Install the LTS build from https://nodejs.org then run this again.
-  pause
-  exit /b 1
+where py >nul 2>&1
+if not errorlevel 1 (
+  set PY=py -3
+  goto serve
+)
+where python >nul 2>&1
+if not errorlevel 1 (
+  set PY=python
+  goto serve
 )
 
-where npm >nul 2>&1
-if errorlevel 1 (
-  echo npm is not on PATH. Reinstall Node.js LTS from https://nodejs.org
-  pause
-  exit /b 1
-)
+echo Python 3 is not installed or not on PATH.
+echo Install it from https://www.python.org then run this again.
+pause
+exit /b 1
 
-echo Installing dependencies...
-call npm install
-if errorlevel 1 (
-  echo npm install failed.
-  pause
-  exit /b 1
-)
-
-echo Opening http://localhost:5173
-start "" "http://localhost:5173"
+:serve
+echo Opening http://localhost:%PORT%
+start "" "http://localhost:%PORT%"
 echo Starting the patcher. Leave this window open. Close it to stop the server.
-call npm run dev
+%PY% serve.py
 if errorlevel 1 pause

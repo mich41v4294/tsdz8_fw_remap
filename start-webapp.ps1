@@ -1,22 +1,18 @@
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "webapp")
+$Port = 8080
 
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-  Write-Host "Node.js is not installed or not on PATH."
-  Write-Host "Install the LTS build from https://nodejs.org then run this again."
-  exit 1
-}
-
-if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-  Write-Host "npm is not on PATH. Reinstall Node.js LTS from https://nodejs.org"
-  exit 1
-}
-
-Write-Host "Installing dependencies..."
-npm install
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-Write-Host "Opening http://localhost:5173"
-Start-Process "http://localhost:5173"
+Write-Host "Opening http://localhost:$Port"
+Start-Process "http://localhost:$Port"
 Write-Host "Starting the patcher. Leave this window open. Close it to stop the server."
-npm run dev
+
+$env:PORT = "$Port"
+if (Get-Command py -ErrorAction SilentlyContinue) {
+  py -3 serve.py
+} elseif (Get-Command python -ErrorAction SilentlyContinue) {
+  python serve.py
+} else {
+  Write-Host "Python 3 is not installed or not on PATH."
+  Write-Host "Install it from https://www.python.org then run this again."
+  exit 1
+}

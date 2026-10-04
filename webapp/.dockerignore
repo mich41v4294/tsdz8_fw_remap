@@ -1,3 +1,5 @@
+*.hex
+.git
 node_modules
 dist
-*.hex
+

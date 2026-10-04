@@ -6,61 +6,55 @@ import {
   IDCHIP_EXPECTED,
   IMAGE_SIZE,
   idchipField,
-} from "./constants";
-import { CortexM } from "./cortexM";
-import { hasCap, JLinkError, JLinkUsb, openWebJlink } from "./jlinkUsb";
-import { SwdHost } from "./swd";
-import { flashXmc1 } from "./xmc1";
+} from "./constants.js";
+import { CortexM } from "./cortexM.js";
+import { hasCap, JLinkError, openWebJlink } from "./jlinkUsb.js";
+import { SwdHost } from "./swd.js";
+import { flashXmc1 } from "./xmc1.js";
+import { t } from "../i18n.js";
 
 export class FlashSessionError extends Error {
-  constructor(message: string) {
+  constructor(message) {
     super(message);
     this.name = "FlashSessionError";
   }
 }
 
-export type StatusFn = (msg: string) => void;
-
 export class FlashSession {
-  dpidr = 0;
-  vtrefMv = 0;
-  firmware = "";
-  product = "";
-  vtrefWarn = "";
+  constructor(jlink, swd, mem) {
+    this.jlink = jlink;
+    this.swd = swd;
+    this.mem = mem;
+    this.dpidr = 0;
+    this.vtrefMv = 0;
+    this.firmware = "";
+    this.product = "";
+    this.vtrefWarn = "";
+  }
 
-  constructor(
-    readonly jlink: JLinkUsb,
-    readonly swd: SwdHost,
-    readonly mem: CortexM,
-  ) {}
-
-  static async connect(
-    opts: { speedKhz?: number; power?: boolean; skipChipId?: boolean; status?: StatusFn } = {},
-  ): Promise<FlashSession> {
+  static async connect(opts = {}) {
     const status = opts.status ?? (() => undefined);
-    status("Requesting J-Link (WebUSB)…");
+    status(t("probe.requesting"));
     const { jlink, product } = await openWebJlink();
     try {
-      status("J-Link hello…");
+      status(t("probe.hello"));
       await jlink.hello();
       await jlink.selectSwd();
       await jlink.setSpeedKhz(opts.speedKhz ?? DEFAULT_SWD_KHZ);
       if (hasCap(jlink.caps, CAP_SET_KS_POWER)) {
         await jlink.setKickstartPower(Boolean(opts.power));
       } else if (opts.power) {
-        throw new FlashSessionError("This J-Link cannot switch target power");
+        throw new FlashSessionError(t("probe.noPowerSwitch"));
       }
       const vtrefMv = await jlink.readVtrefMv();
       let vtrefWarn = "";
       if (vtrefMv === 0) {
-        vtrefWarn = "VTref reports 0 V (common on clones); continuing.";
+        vtrefWarn = t("probe.vtrefZero");
         status(vtrefWarn);
       } else if (!opts.power && vtrefMv < 1500) {
-        throw new FlashSessionError(
-          `VTref is ${(vtrefMv / 1000).toFixed(2)} V. Power the controller (battery) or enable probe power. Do not do both.`,
-        );
+        throw new FlashSessionError(t("probe.vtrefLow", { volts: (vtrefMv / 1000).toFixed(2) }));
       }
-      status("SWD connect…");
+      status(t("probe.swd"));
       const swd = new SwdHost(jlink);
       const dpidr = await swd.connectDebug();
       const mem = new CortexM(swd);
@@ -70,7 +64,11 @@ export class FlashSession {
         const field = idchipField(word);
         if (field !== IDCHIP_EXPECTED) {
           throw new FlashSessionError(
-            `SCU_IDCHIP[23:8]=0x${field.toString(16)} (raw 0x${word.toString(16)}), expected 0x${IDCHIP_EXPECTED.toString(16)}`,
+            t("probe.chipId", {
+              field: field.toString(16),
+              raw: word.toString(16),
+              expected: IDCHIP_EXPECTED.toString(16),
+            }),
           );
         }
       }
@@ -87,45 +85,52 @@ export class FlashSession {
     }
   }
 
-  infoLine(): string {
-    const vt = this.vtrefMv === 0 ? "0 V (unreported)" : `${(this.vtrefMv / 1000).toFixed(2)} V`;
+  infoLine() {
+    const vt = this.vtrefMv === 0 ? t("probe.vtUnreported") : `${(this.vtrefMv / 1000).toFixed(2)} V`;
     const warn = this.vtrefWarn ? ` — ${this.vtrefWarn}` : "";
-    return `${this.product} fw=${this.firmware || "?"} DPIDR=0x${this.dpidr.toString(16)} VTref=${vt}${warn}`;
-  }
-
-  async dumpFlash(onProgress?: StatusFn): Promise<Uint8Array> {
-    await this.mem.halt();
-    return this.mem.readMem(FLASH_BASE, IMAGE_SIZE, (done, total) => {
-      onProgress?.(`Reading flash ${done}/${total}`);
+    return t("probe.info", {
+      product: this.product,
+      firmware: this.firmware || "?",
+      dpidr: this.dpidr.toString(16),
+      vt,
+      warn,
     });
   }
 
-  async verify(image: Uint8Array, onProgress?: StatusFn): Promise<void> {
+  async dumpFlash(onProgress) {
+    await this.mem.halt();
+    return this.mem.readMem(FLASH_BASE, IMAGE_SIZE, (done, total) => {
+      onProgress?.(t("probe.reading", { done: String(done), total: String(total) }));
+    });
+  }
+
+  async verify(image, onProgress) {
     if (image.length !== IMAGE_SIZE) {
-      throw new FlashSessionError(`Image must be ${IMAGE_SIZE} bytes`);
+      throw new FlashSessionError(t("probe.imageSize", { size: String(IMAGE_SIZE) }));
     }
     const got = await this.dumpFlash(onProgress);
     for (let i = 0; i < IMAGE_SIZE; i++) {
       if (got[i] !== image[i]) {
-        throw new FlashSessionError(`Verify failed at 0x${(FLASH_BASE + i).toString(16)}`);
+        throw new FlashSessionError(t("probe.verifyFail", { addr: (FLASH_BASE + i).toString(16) }));
       }
     }
   }
 
-  async flash(image: Uint8Array, status?: StatusFn): Promise<void> {
+  async flash(image, status) {
     if (image.length !== IMAGE_SIZE) {
-      throw new FlashSessionError(`Image must be ${IMAGE_SIZE} bytes`);
+      throw new FlashSessionError(t("probe.imageSize", { size: String(IMAGE_SIZE) }));
     }
     await this.mem.halt();
     await flashXmc1(this.mem, image, (done, total, phase) => {
-      status?.(`${phase} ${done}/${total}`);
+      const phaseLabel = phase === "erase" ? t("probe.erase") : t("probe.write");
+      status?.(`${phaseLabel} ${done}/${total}`);
     });
-    status?.("verifying…");
+    status?.(t("probe.verifying"));
     await this.verify(image, status);
     await this.mem.resetRun();
   }
 
-  async close(): Promise<void> {
+  async close() {
     await this.jlink.close();
   }
 }
