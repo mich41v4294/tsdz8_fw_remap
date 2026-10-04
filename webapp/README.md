@@ -6,7 +6,7 @@ Flash with the pylink CLI ([`../tools/jlink_flasher/`](../tools/jlink_flasher/))
 
 Rider settings and advanced firmware tunables are separate in the UI. Advanced is collapsed by default.
 
-This directory is a static site (plain ES modules). There is no Node.js build step.
+This directory is a static site (plain ES modules). There is no Node.js build step. GitHub Pages publishes it from `main` at https://mich41v4294.github.io/tsdz8_fw_remap/.
 
 ## Verified behavior
 

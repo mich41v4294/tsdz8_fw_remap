@@ -4,6 +4,8 @@ Browser tool and notes from a Ghidra pass over Tongsheng TSDZ8 stock motor firmw
 
 It does **not** include vendor firmware or a Ghidra project. Flashing is the host CLI ([`tools/jlink_flasher/`](tools/jlink_flasher/)). Experimental Chrome WebUSB is off unless the patcher is opened with `?webusb=1`.
 
+Hosted UI (GitHub Pages, every push to `main`): https://mich41v4294.github.io/tsdz8_fw_remap/
+
 **Off-road / private property only.** Raising the motor speed or current cap can make the bike illegal on public roads. That is your responsibility.
 
 ## What is here
@@ -22,6 +24,8 @@ It does **not** include vendor firmware or a Ghidra project. Flashing is the hos
 Not committed: `original firmware thonghsheng.hex`, `tsdz8_motor.gpr` / `.rep` (local Ghidra DB), `analysis/` (coverage notes).
 
 ## Use
+
+Open https://mich41v4294.github.io/tsdz8_fw_remap/ (published from [`webapp/`](webapp/) on each `main` commit). HEX files stay in the browser.
 
 **Windows:** install [Python 3](https://www.python.org), then double-click [`start-webapp.bat`](start-webapp.bat) (or run [`start-webapp.ps1`](start-webapp.ps1)). It serves the static site at http://localhost:8080.
 
