@@ -224,7 +224,7 @@ function renderCard(spec, { showAdvancedBadge = false } = {}) {
       ? `<div class="range-row">
             <button type="button" data-stock-id="${spec.id}" class="${atStock ? "active" : ""}">${t("fields.stock")}</button>
             <div class="range-wrap">
-              <input data-id="${spec.id}" type="range" min="${sliderMin}" max="${spec.max}" step="${spec.step}" value="${rangeValue}" ${derived ? "disabled" : ""} aria-label="${esc(paramText(spec.id, "label"))}" />
+              <input data-id="${spec.id}" type="range" min="${sliderMin}" max="${spec.max}" step="${spec.step}" value="${rangeValue}" aria-label="${esc(paramText(spec.id, "label"))}" />
               <div class="range-ends"><span title="${t("fields.min")}">${sliderMin}</span><span title="${t("fields.max")}">${spec.max}</span></div>
             </div>
           </div>
@@ -845,7 +845,6 @@ function setParamValue(id, next) {
       continue;
     }
     if (other.type === "range") {
-      other.disabled = derived;
       other.value = String(derived ? sliderMin : values[id]);
       other.setAttribute("aria-invalid", "false");
       continue;
@@ -994,12 +993,13 @@ function bind() {
     });
   }
 
-  for (const wrap of app.querySelectorAll(".card.derived .range-wrap")) {
+  for (const wrap of app.querySelectorAll(".card.slider .range-wrap")) {
     wrap.addEventListener("pointerdown", () => {
       const input = wrap.querySelector("input[type=range]");
       const id = input?.dataset.id;
       const spec = parameterMap.parameters.find((p) => p.id === id);
-      if (!id || !spec || values[id] !== 0) return;
+      if (!id || !spec || !isStockDerivedSlider(spec) || values[id] !== 0) return;
+      // First drag/click leaves the stock-derived sentinel (0) and starts at sliderMin.
       setParamValue(id, spec.sliderMin ?? spec.min);
     });
   }

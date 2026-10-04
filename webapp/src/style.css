@@ -549,8 +549,8 @@ p, li { line-height: 1.45; }
   accent-color: var(--accent);
 }
 
-.card.slider input[type="range"]:disabled {
-  opacity: 0.4;
+.card.derived input[type="range"] {
+  opacity: 0.55;
 }
 
 .card.slider .range-ends {
@@ -780,6 +780,10 @@ button:disabled {
   background: var(--panel);
   padding: 0.9rem 1rem 1.1rem;
   border-radius: var(--radius);
+}
+
+.probe h2 {
+  margin-top: 0;
 }
 
 .probe .actions {
