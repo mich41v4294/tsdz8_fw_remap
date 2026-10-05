@@ -104,6 +104,15 @@ main.wide,
   gap: 1rem;
 }
 
+.build-rev {
+  margin: 0.2rem 0 0;
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  user-select: all;
+}
+
 .lang {
   display: flex;
   gap: 0.35rem;

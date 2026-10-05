@@ -918,6 +918,7 @@
   "flash.how": "Ako nahrať",
   "footer.techNotes": "Technické poznámky",
   "lang.label": "Jazyk",
+  "build.commit": "build {hash}",
   "hexviz.legend.stock": "Zhoda s originálom",
   "hexviz.replace": "Nahradiť súbor",
   "hexviz.modeGroup": "Režim zobrazenia",

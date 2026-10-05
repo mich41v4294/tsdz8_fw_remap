@@ -78,4 +78,4 @@ Windows: [`../jlink-flash.bat`](../jlink-flash.bat) / [`../jlink-flash.ps1`](../
 
 Experimental WebUSB in the page is off unless you open `?webusb=1`. Close J-Flash / JLinkExe first. VTref sense only unless you tick probe power; never power from battery and J-Link together. Raising the cap can make the bike illegal on public roads; that is your responsibility.
 
-To serve the built site on a homelab, see **Self-host** in [`../README.md`](../README.md) (`docker compose up -d --build`, port 8080).
+To serve the built site on a homelab, see **Self-host** in [`../README.md`](../README.md) (`GIT_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build`, port 8080). The topbar shows the short git commit used for that build.

@@ -67,10 +67,10 @@ Tests that need the real dump are skipped when the HEX is absent. With the file 
 The patcher is a static site. Clone this private repo on the homelab (SSH deploy key or GitHub PAT) and build locally — nothing is published to a registry.
 
 ```bash
-docker compose up -d --build
+GIT_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build
 ```
 
-The UI is on port **8080**. In Dockhand, add a stack from this GitHub repo, compose file `docker-compose.yml`, and credentials that can clone the private repo. Rebuild when you pull.
+The UI is on port **8080** and shows the short commit under the title (local `serve.py` writes it automatically; Pages does the same on deploy). In Dockhand, add a stack from this GitHub repo, compose file `docker-compose.yml`, and credentials that can clone the private repo. Set build arg / env `GIT_COMMIT` to the short hash on rebuild.
 
 HEX edit and download work over plain HTTP. The default flasher is the Python CLI (no HTTPS). Experimental WebUSB (`?webusb=1`) needs a secure context (HTTPS or `localhost`).
 

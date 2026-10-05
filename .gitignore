@@ -10,6 +10,9 @@ analysis/
 *.lock
 *.lock~
 
+# Generated at serve / CI / Docker build time
+webapp/src/buildInfo.js
+
 # Node
 node_modules/
 dist/

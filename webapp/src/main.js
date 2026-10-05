@@ -25,6 +25,18 @@ import { applyPasChart, isPasPercentId, pasChartSvg, valueFromPointer } from "./
 const app = document.querySelector("#app");
 if (!app) throw new Error("#app missing");
 
+async function loadBuildCommit() {
+  try {
+    const mod = await import("./buildInfo.js");
+    const hash = typeof mod.BUILD_COMMIT === "string" ? mod.BUILD_COMMIT.trim() : "";
+    return hash || "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+const BUILD_COMMIT = await loadBuildCommit();
+
 let view = "patcher";
 let loaded = null;
 const values = defaultValues();
@@ -684,6 +696,7 @@ function render() {
         <header class="topbar">
           <div>
             <h1>${t("title")}</h1>
+            <p class="build-rev" title="${esc(BUILD_COMMIT)}">${t("build.commit", { hash: esc(BUILD_COMMIT) })}</p>
           </div>
           <div class="lang" role="group" aria-label="${t("lang.label")}">
             <button type="button" data-lang="en" class="${lang === "en" ? "active" : ""}" aria-pressed="${lang === "en"}">${t("lang.en")}</button>

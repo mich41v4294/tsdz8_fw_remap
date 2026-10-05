@@ -2,6 +2,8 @@ services:
   webapp:
     build:
       context: ./webapp
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
     ports:
       - "8080:80"
     restart: unless-stopped
