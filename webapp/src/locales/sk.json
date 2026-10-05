@@ -180,7 +180,7 @@
     "PAS 0 je nula. PAS 6 je walk: RunRideControlLoop uloží 450 do wCurrentTarget (ride-state+0x12). ApplyAssistLevelTargets potom vynuluje percento a zapíše walk_assist_fraction_sixteenths plného prúdu (originál 3/16) do ostatných cieľových slov.",
     "Štartovacie hodnoty 1000 / 728 / 641 v InitializeRideDefaults nasejú fade RAM (0x200025AC / 0x2000258A / 0x20002588). RebuildWheelSpeedFadeThresholds ich znovu spočíta z kolesa×rýchlosti, takže flash konštanty neostanú. V tejto mape nie sú.",
     "Jazdné nastavenia menia každodennú rýchlosť/PAS/walk. Pokročilé sú FOC, stall, hall, časovanie impulzu kolesa a ochrany — zlé hodnoty môžu motor zastaviť, zrezať asistenciu alebo posunúť komutáciu.",
-    "Maximum VD04 je 60. Posuvník Rýchlostný limit mení len display-status porovnanie periódy. Živé zoslabovanie motora ide z fade tabuľky koleso×rýchlosť displeja. Odblokovanie pri 60 remapuje 60 na 99 pre fade (a mení aj druhú podmienku display-status). Vypnúť speed fade vynuluje prahy periódy fade, keď displej pošle 60, takže off-road nemá taper; on-road 25 ostáva stock ApplyWheelSpeedFade. Odblokovanie výkonu preskočí príznaky pretätia/podpätia batérie a foldback pri nízkom napätí; vetva zvyšovania môže stále ísť dole keď avg < UV."
+    "Maximum VD04 je 60. Posuvník Rýchlostný limit mení len display-status porovnanie periódy. Živé zoslabovanie motora ide z fade tabuľky koleso×rýchlosť displeja. Odblokovanie pri 60 remapuje 60 na 99 pre fade a núti display TX bit 0x40000 vždy zapnutý (bcc→b na 0x10008824), aby handshake VD04 neostal v legal 25/PAS 1. Vypnúť speed fade vynuluje prahy periódy fade, keď displej pošle 60, takže off-road nemá taper; on-road 25 ostáva stock ApplyWheelSpeedFade. Odblokovanie výkonu preskočí príznaky pretätia/podpätia batérie a foldback pri nízkom napätí; vetva zvyšovania môže stále ísť dole keď avg < UV."
   ],
   "firmwareLabel": "Stock Tongsheng TSDZ8",
   "parameters": {
@@ -259,14 +259,14 @@
     "unlimit_speed_display_60": {
       "label": "Odblokovať rýchlosť, keď displej pošle 60 km/h",
       "unit": "",
-      "summary": "Keď je maximum z displeja 60, premapovať fade na 99, aby asistencia mohla ísť aj nad 60. Prvé miesto mení len display-status porovnanie periódy; zmena motora je remap 60→99.",
-      "notes": "Site 0x10008826 nahradí protect-bit test vo UpdateDisplayWheelPeriodStatusBit porovnaním display-max==60. Site 0x10008890 remapuje display 60→99 v RebuildWheelSpeedFadeThresholds. Nevypla fade; posunie bod taperu. Vypnúť speed fade, ak je tiež zapnuté, prepíše tento remap in-function 60-gate (rovnakých 8 bajtov; poradie apply je najprv tento parameter, potom disable). Display-status miesto ostáva. Pozn.: niektoré donor patched HEX namiesto toho nútia display-status bit always-on (blo→b na 0x10008824/25) a 0x10008826 nechajú stock — to nie je ekvivalent tohto site-1 patchu."
+      "summary": "Núti display TX bit 0x40000 vždy zapnutý, aby handshake VD04 neostal v legal 25/PAS 1, a remapuje fade z 60 na 99 keď displej pošle 60. Taper motora je remap 60→99; Vypnúť speed fade ten remap prepíše 60-gate.",
+      "notes": "Site 0x10008824 je bcc→b, takže UpdateDisplayWheelPeriodStatusBit vždy OR-ne 0x40000 do display TX slova (rovnaký handshake ako donor patched HEX). Vymazanie bitu pri státí nechá VD04 v legal PAS-1 / 25 km/h, takže nikdy nepošle 60. Site 0x10008826 (protect-bit test) ostáva stock. Site 0x10008890 remapuje display 60→99 v RebuildWheelSpeedFadeThresholds. Nevypla fade; posunie bod taperu. Vypnúť speed fade, ak je tiež zapnuté, prepíše tento remap in-function 60-gate (rovnakých 8 bajtov; poradie apply je najprv tento parameter, potom disable). Handshake miesto ostáva. Krátke b je scatter/RAM-safe."
     },
     "disable_speed_fade": {
       "label": "Vypnúť speed fade",
       "unit": "",
       "summary": "Preskočí taper asistencie pri blížiacom sa cap len keď je maximum z displeja 60 (off-road). Pri on-road 25 km/h ostane stock fade. PAS percento, ride-current clamp, tepelné, batériové a protect limity stále platia.",
-      "notes": "RebuildWheelSpeedFadeThresholds sa scatter-kopíruje do SRAM 0x2000146A, takže ďaleký BL mimo tohto okna je neplatný. Tento 8-bajtový in-function gate na 0x10008890 je cmp r5,#60; bne stock math; movs r0,#0; b 0x100088A6 (ldr r7 / strh 0 do +0x30, potom *25/22 z 0 do +0x32, potom cache). Krátke PC-relatívne skoky ostávajú platné po kópii do RAM. Nepatchuje ApplyWheelSpeedFade. Zdieľa 0x10008890 s Unlimit-when-display-60; keď sú obe zapnuté, tento gate prepíše remap 60→99. Nie doslova vždy plný výkon motora — ostatné limitery ostávajú."
+      "notes": "RebuildWheelSpeedFadeThresholds sa scatter-kopíruje do SRAM 0x2000146A, takže ďaleký BL mimo tohto okna je neplatný. Tento 8-bajtový in-function gate na 0x10008890 je cmp r5,#60; bne stock math; movs r0,#0; b 0x100088A6 (ldr r7 / strh 0 do +0x30, potom *25/22 z 0 do +0x32, potom cache). Krátke PC-relatívne skoky ostávajú platné po kópii do RAM. Nepatchuje ApplyWheelSpeedFade. Zdieľa 0x10008890 s Unlimit-when-display-60; keď sú obe zapnuté, tento gate prepíše remap 60→99. Handshake bcc→b na 0x10008824 ostáva. Nie doslova vždy plný výkon motora — ostatné limitery ostávajú."
     },
     "ride_current_clamp": {
       "label": "Limit prúdu jazdy",

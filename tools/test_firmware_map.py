@@ -538,10 +538,10 @@ class PatcherVsStockTests(unittest.TestCase):
 
     def test_unlimits_display_60_without_touching_uart(self) -> None:
         patched = apply_patches(self.stock(), {**default_values(), "unlimit_speed_display_60": 1})
-        self.assertEqual(list(patched[0x10008824 - FLASH_BASE : 0x10008824 - FLASH_BASE + 2]), [0x03, 0xD3])
+        self.assertEqual(list(patched[0x10008824 - FLASH_BASE : 0x10008824 - FLASH_BASE + 2]), [0x03, 0xE0])
         self.assertEqual(
             list(patched[0x10008826 - FLASH_BASE : 0x10008826 - FLASH_BASE + 8]),
-            [0x54, 0x49, 0x09, 0x78, 0x3C, 0x29, 0x03, 0xD1],
+            [0x55, 0x49, 0x09, 0x68, 0x49, 0x07, 0x03, 0xD5],
         )
         self.assertEqual(
             list(patched[0x10008890 - FLASH_BASE : 0x10008890 - FLASH_BASE + 8]),
@@ -553,10 +553,10 @@ class PatcherVsStockTests(unittest.TestCase):
     def test_offroad_unlimit_preset_keeps_stock_ceiling(self) -> None:
         patched = apply_patches(self.stock(), apply_preset("offroad_unlimit", default_values()))
         self.assertEqual(patched[0x1000881A - FLASH_BASE], 0x19)
-        self.assertEqual(list(patched[0x10008824 - FLASH_BASE : 0x10008824 - FLASH_BASE + 2]), [0x03, 0xD3])
+        self.assertEqual(list(patched[0x10008824 - FLASH_BASE : 0x10008824 - FLASH_BASE + 2]), [0x03, 0xE0])
         self.assertEqual(
             list(patched[0x10008826 - FLASH_BASE : 0x10008826 - FLASH_BASE + 8]),
-            [0x54, 0x49, 0x09, 0x78, 0x3C, 0x29, 0x03, 0xD1],
+            [0x55, 0x49, 0x09, 0x68, 0x49, 0x07, 0x03, 0xD5],
         )
         self.assertEqual(list(patched[0x10003A18 - FLASH_BASE : 0x10003A18 - FLASH_BASE + 4]), [0x00, 0x00, 0xF0, 0x41])
         self.assertEqual(patched[0x100031E4 - FLASH_BASE], 255)
@@ -576,15 +576,17 @@ class PatcherVsStockTests(unittest.TestCase):
         self.assertEqual(patched[0x100088F0 - FLASH_BASE], 0x4B)
         self.assertEqual(list(patched[0x100088EA - FLASH_BASE : 0x100088EA - FLASH_BASE + 2]), [0x2D, 0x78])
         self.assertEqual(list(patched[0x1000FF00 - FLASH_BASE : 0x1000FF00 - FLASH_BASE + 4]), [0xFF, 0xFF, 0xFF, 0xFF])
+        self.assertEqual(list(patched[0x10008824 - FLASH_BASE : 0x10008824 - FLASH_BASE + 2]), [0x03, 0xD3])
 
-    def test_disable_speed_fade_overwrites_unlimit_remap_keeps_display_status(self) -> None:
+    def test_disable_speed_fade_overwrites_unlimit_remap_keeps_handshake(self) -> None:
         patched = apply_patches(
             self.stock(),
             {**default_values(), "unlimit_speed_display_60": 1, "disable_speed_fade": 1},
         )
+        self.assertEqual(list(patched[0x10008824 - FLASH_BASE : 0x10008824 - FLASH_BASE + 2]), [0x03, 0xE0])
         self.assertEqual(
             list(patched[0x10008826 - FLASH_BASE : 0x10008826 - FLASH_BASE + 8]),
-            [0x54, 0x49, 0x09, 0x78, 0x3C, 0x29, 0x03, 0xD1],
+            [0x55, 0x49, 0x09, 0x68, 0x49, 0x07, 0x03, 0xD5],
         )
         self.assertEqual(
             list(patched[0x10008890 - FLASH_BASE : 0x10008890 - FLASH_BASE + 8]),
