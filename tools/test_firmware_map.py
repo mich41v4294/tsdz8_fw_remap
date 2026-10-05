@@ -559,16 +559,46 @@ class PatcherVsStockTests(unittest.TestCase):
         self.assertEqual(list(patched[0x10003A18 - FLASH_BASE : 0x10003A18 - FLASH_BASE + 4]), [0x00, 0x00, 0xF0, 0x41])
         self.assertEqual(patched[0x100031E4 - FLASH_BASE], 255)
         self.assertEqual(list(patched[0x100031D6 - FLASH_BASE : 0x100031D6 - FLASH_BASE + 2]), [0x49, 0x01])
+        self.assertEqual(list(patched[0x10008898 - FLASH_BASE : 0x10008898 - FLASH_BASE + 4]), [0x07, 0xF0, 0x32, 0xFB])
+        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x02, 0xD2])
+        self.assertEqual(patched[0x1000FF00 - FLASH_BASE : 0x1000FF00 - FLASH_BASE + 4], bytes([0x07, 0x49, 0x09, 0x78]))
 
-    def test_disables_speed_fade_after_loading_span(self) -> None:
+    def test_disables_speed_fade_only_via_rebuild_cave(self) -> None:
         patched = apply_patches(self.stock(), {**default_values(), "disable_speed_fade": 1})
-        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x02, 0xE0])
-        self.assertEqual(list(patched[0x100088FE - FLASH_BASE : 0x100088FE - FLASH_BASE + 2]), [0x31, 0x4D])
-        self.assertEqual(list(patched[0x10008902 - FLASH_BASE : 0x10008902 - FLASH_BASE + 2]), [0x2D, 0x88])
-        self.assertEqual(list(patched[0x10008904 - FLASH_BASE : 0x10008904 - FLASH_BASE + 2]), [0x07, 0xE0])
-        self.assertEqual(list(patched[0x10008922 - FLASH_BASE : 0x10008922 - FLASH_BASE + 2]), [0x0C, 0xE0])
+        self.assertEqual(list(patched[0x10008898 - FLASH_BASE : 0x10008898 - FLASH_BASE + 4]), [0x07, 0xF0, 0x32, 0xFB])
+        self.assertEqual(
+            list(patched[0x1000FF00 - FLASH_BASE : 0x1000FF00 - FLASH_BASE + 48]),
+            [
+                0x07, 0x49, 0x09, 0x78, 0x3C, 0x29, 0x07, 0xD1,
+                0x06, 0x4F, 0x00, 0x20, 0x38, 0x86, 0x78, 0x86,
+                0x05, 0x48, 0x04, 0x70, 0x31, 0x70, 0xF8, 0xBD,
+                0x04, 0x49, 0x20, 0x46, 0x70, 0x47, 0x00, 0xBF,
+                0x05, 0x27, 0x00, 0x20, 0x58, 0x25, 0x00, 0x20,
+                0x02, 0x27, 0x00, 0x20, 0x33, 0x03, 0x00, 0x00,
+            ],
+        )
+        self.assertEqual(list(patched[0x10008890 - FLASH_BASE : 0x10008890 - FLASH_BASE + 8]), [0x84, 0x42, 0x01, 0xD1, 0x8D, 0x42, 0x12, 0xD0])
+        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x02, 0xD2])
+        self.assertEqual(list(patched[0x10008904 - FLASH_BASE : 0x10008904 - FLASH_BASE + 2]), [0x07, 0xD2])
+        self.assertEqual(list(patched[0x10008922 - FLASH_BASE : 0x10008922 - FLASH_BASE + 2]), [0x03, 0xD2])
         self.assertEqual(patched[0x100088F0 - FLASH_BASE], 0x4B)
         self.assertEqual(list(patched[0x100088EA - FLASH_BASE : 0x100088EA - FLASH_BASE + 2]), [0x2D, 0x78])
+
+    def test_disable_speed_fade_keeps_unlimit_remap_and_display_status(self) -> None:
+        patched = apply_patches(
+            self.stock(),
+            {**default_values(), "unlimit_speed_display_60": 1, "disable_speed_fade": 1},
+        )
+        self.assertEqual(
+            list(patched[0x10008826 - FLASH_BASE : 0x10008826 - FLASH_BASE + 8]),
+            [0x54, 0x49, 0x09, 0x78, 0x3C, 0x29, 0x03, 0xD1],
+        )
+        self.assertEqual(
+            list(patched[0x10008890 - FLASH_BASE : 0x10008890 - FLASH_BASE + 8]),
+            [0x3C, 0x2D, 0x01, 0xD1, 0x63, 0x25, 0x00, 0xBF],
+        )
+        self.assertEqual(list(patched[0x10008898 - FLASH_BASE : 0x10008898 - FLASH_BASE + 4]), [0x07, 0xF0, 0x32, 0xFB])
+        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x02, 0xD2])
 
     def test_thermal_high_band_writes_both_imm8_sites(self) -> None:
         patched = apply_patches(self.stock(), {**default_values(), "thermal_protect_high_band": 100})

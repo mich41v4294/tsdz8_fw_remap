@@ -33,7 +33,7 @@ This directory is a static site (plain ES modules). There is no Node.js build st
 | PAS 1–5 percents | `0x10002EDC` … `0x10002F44` | 30/50/70/85/100 |
 | Walk-assist target | `0x100032C2` | 450 |
 | Unlimit speed when display sends 60 | `0x10008826`, `0x10008890` | off |
-| Disable speed fade | `0x100088F6`, `0x10008904`, `0x10008922` | off |
+| Disable speed fade | `0x10008898`, cave `0x1000FF00` | off |
 | Bypass battery OV/UV flag branches | `0x10002DA4`… | off |
 | Ride current clamp | `0x10003954` | 0 (stock derived) |
 
