@@ -51,6 +51,7 @@ class ParameterMapTests(unittest.TestCase):
         preserve = {p["id"] for p in PARAMETER_MAP["preserve"]}
         for pid in (
             "throttle_pas_full_span",
+            "skip_throttle_lockout_bit",
             "uart_min_display_speed_kmh",
             "long_period_sample_gate_kmh",
             "long_period_sample_cap",
@@ -154,7 +155,7 @@ class ParameterMapTests(unittest.TestCase):
         ):
             self.assertIn(pid, ids)
         self.assertIn("wheel_period_constant_base", preserve)
-        self.assertEqual(len(PARAMETER_MAP["parameters"]), 120)
+        self.assertEqual(len(PARAMETER_MAP["parameters"]), 121)
 
     def test_requires_audience_on_every_parameter(self) -> None:
         audiences = {p["audience"] for p in PARAMETER_MAP["parameters"]}
@@ -302,6 +303,10 @@ class ParameterMapTests(unittest.TestCase):
         self.assertEqual(values["skip_battery_voltage_guards"], 1)
         self.assertEqual(values["pack_max_current_a"], 30)
         self.assertEqual(values["overload_cutout_margin"], 255)
+        self.assertEqual(values["skip_throttle_lockout_bit"], 1)
+        self.assertEqual(values["throttle_adc_low"], -840)
+        self.assertEqual(values["fade_throttle_adc_low"], -840)
+        self.assertEqual(values["foc_throttle_gate_base"], 840)
         self.assertEqual(
             {d["id"] for d in build_diff(apply_preset("offroad_unlimit", default_values()))},
             {
@@ -311,6 +316,10 @@ class ParameterMapTests(unittest.TestCase):
                 "skip_battery_voltage_guards",
                 "pack_max_current_a",
                 "overload_cutout_margin",
+                "skip_throttle_lockout_bit",
+                "throttle_adc_low",
+                "fade_throttle_adc_low",
+                "foc_throttle_gate_base",
             },
         )
         raised = apply_preset("offroad_unlimit", {**default_values(), "speed_ceiling_kmh": 60})
@@ -568,6 +577,10 @@ class PatcherVsStockTests(unittest.TestCase):
         self.assertEqual(list(patched[0x10008898 - FLASH_BASE : 0x10008898 - FLASH_BASE + 4]), [0x3E, 0x49, 0x20, 0x46])
         self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x0E, 0xE0])
         self.assertEqual(list(patched[0x10008922 - FLASH_BASE : 0x10008922 - FLASH_BASE + 2]), [0x0C, 0xE0])
+        self.assertEqual(list(patched[0x1000330C - FLASH_BASE : 0x1000330C - FLASH_BASE + 2]), [0x00, 0xBF])
+        self.assertEqual(list(patched[0x100033E4 - FLASH_BASE : 0x100033E4 - FLASH_BASE + 4]), [0xB8, 0xFC, 0xFF, 0xFF])
+        self.assertEqual(list(patched[0x100089B8 - FLASH_BASE : 0x100089B8 - FLASH_BASE + 4]), [0xB8, 0xFC, 0xFF, 0xFF])
+        self.assertEqual(patched[0x10007D34 - FLASH_BASE], 0x69)
         self.assertEqual(list(patched[0x1000FF00 - FLASH_BASE : 0x1000FF00 - FLASH_BASE + 4]), [0xFF, 0xFF, 0xFF, 0xFF])
 
     def test_disables_speed_fade_via_apply_bcs_to_b(self) -> None:
@@ -584,6 +597,14 @@ class PatcherVsStockTests(unittest.TestCase):
         self.assertEqual(list(patched[0x100088EA - FLASH_BASE : 0x100088EA - FLASH_BASE + 2]), [0x2D, 0x78])
         self.assertEqual(list(patched[0x1000FF00 - FLASH_BASE : 0x1000FF00 - FLASH_BASE + 4]), [0xFF, 0xFF, 0xFF, 0xFF])
         self.assertEqual(list(patched[0x10008824 - FLASH_BASE : 0x10008824 - FLASH_BASE + 2]), [0x03, 0xD3])
+
+    def test_skips_throttle_lockout_bmi(self) -> None:
+        patched = apply_patches(self.stock(), {**default_values(), "skip_throttle_lockout_bit": 1})
+        self.assertEqual(list(patched[0x1000330C - FLASH_BASE : 0x1000330C - FLASH_BASE + 2]), [0x00, 0xBF])
+        self.assertEqual(list(patched[0x10003306 - FLASH_BASE : 0x10003306 - FLASH_BASE + 2]), [0x2E, 0xD2])
+        self.assertEqual(list(patched[0x1000330E - FLASH_BASE : 0x1000330E - FLASH_BASE + 2]), [0x00, 0x2E])
+        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x02, 0xD2])
+        self.assertEqual(list(patched[0x100033E4 - FLASH_BASE : 0x100033E4 - FLASH_BASE + 4]), [0x27, 0xFB, 0xFF, 0xFF])
 
     def test_disable_speed_fade_and_unlimit_apply_independently(self) -> None:
         patched = apply_patches(

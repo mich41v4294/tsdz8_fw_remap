@@ -1,5 +1,5 @@
-import en from "./locales/en.json?v=31" with { type: "json" };
-import sk from "./locales/sk.json?v=31" with { type: "json" };
+import en from "./locales/en.json?v=32" with { type: "json" };
+import sk from "./locales/sk.json?v=32" with { type: "json" };
 
 const catalogs = { en, sk };
 const STORAGE_KEY = "tsdz8-lang";
