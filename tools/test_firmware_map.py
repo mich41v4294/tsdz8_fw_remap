@@ -303,10 +303,10 @@ class ParameterMapTests(unittest.TestCase):
         self.assertEqual(values["skip_battery_voltage_guards"], 1)
         self.assertEqual(values["pack_max_current_a"], 30)
         self.assertEqual(values["overload_cutout_margin"], 255)
-        self.assertEqual(values["skip_throttle_lockout_bit"], 1)
-        self.assertEqual(values["throttle_adc_low"], -840)
-        self.assertEqual(values["fade_throttle_adc_low"], -840)
-        self.assertEqual(values["foc_throttle_gate_base"], 840)
+        self.assertEqual(values["skip_throttle_lockout_bit"], 0)
+        self.assertEqual(values["throttle_adc_low"], -1241)
+        self.assertEqual(values["fade_throttle_adc_low"], -1241)
+        self.assertEqual(values["foc_throttle_gate_base"], 1240)
         self.assertEqual(
             {d["id"] for d in build_diff(apply_preset("offroad_unlimit", default_values()))},
             {
@@ -316,10 +316,6 @@ class ParameterMapTests(unittest.TestCase):
                 "skip_battery_voltage_guards",
                 "pack_max_current_a",
                 "overload_cutout_margin",
-                "skip_throttle_lockout_bit",
-                "throttle_adc_low",
-                "fade_throttle_adc_low",
-                "foc_throttle_gate_base",
             },
         )
         raised = apply_preset("offroad_unlimit", {**default_values(), "speed_ceiling_kmh": 60})
@@ -577,10 +573,10 @@ class PatcherVsStockTests(unittest.TestCase):
         self.assertEqual(list(patched[0x10008898 - FLASH_BASE : 0x10008898 - FLASH_BASE + 4]), [0x3E, 0x49, 0x20, 0x46])
         self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x0E, 0xE0])
         self.assertEqual(list(patched[0x10008922 - FLASH_BASE : 0x10008922 - FLASH_BASE + 2]), [0x0C, 0xE0])
-        self.assertEqual(list(patched[0x1000330C - FLASH_BASE : 0x1000330C - FLASH_BASE + 2]), [0x00, 0xBF])
-        self.assertEqual(list(patched[0x100033E4 - FLASH_BASE : 0x100033E4 - FLASH_BASE + 4]), [0xB8, 0xFC, 0xFF, 0xFF])
-        self.assertEqual(list(patched[0x100089B8 - FLASH_BASE : 0x100089B8 - FLASH_BASE + 4]), [0xB8, 0xFC, 0xFF, 0xFF])
-        self.assertEqual(patched[0x10007D34 - FLASH_BASE], 0x69)
+        self.assertEqual(list(patched[0x1000330C - FLASH_BASE : 0x1000330C - FLASH_BASE + 2]), [0x2B, 0xD4])
+        self.assertEqual(list(patched[0x100033E4 - FLASH_BASE : 0x100033E4 - FLASH_BASE + 4]), [0x27, 0xFB, 0xFF, 0xFF])
+        self.assertEqual(list(patched[0x100089B8 - FLASH_BASE : 0x100089B8 - FLASH_BASE + 4]), [0x27, 0xFB, 0xFF, 0xFF])
+        self.assertEqual(patched[0x10007D34 - FLASH_BASE], 0x9B)
         self.assertEqual(list(patched[0x1000FF00 - FLASH_BASE : 0x1000FF00 - FLASH_BASE + 4]), [0xFF, 0xFF, 0xFF, 0xFF])
 
     def test_disables_speed_fade_via_apply_bcs_to_b(self) -> None:
