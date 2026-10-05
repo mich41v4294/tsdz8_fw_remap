@@ -14,7 +14,7 @@
   "presets.hint": "Kliknutím predvolené nastavenia zapíšete. Ostatné polia ostanú. Len mimo ciest / na súkromnom pozemku.",
   "presets.applied": "Použité",
   "presets.offroad_unlimit.label": "Off-road bez limitov",
-  "presets.offroad_unlimit.summary": "Preskočí motor speed fade v oboch režimoch displeja (rovnaké Apply patche ako donor HEX), núti handshake TX bit VD04, remapuje fade z 60 na 99, nastaví limit prúdu jazdy na 32767, preskočí stráže pretätia/podpätia batérie, zdvihne max prúd packu na 30 A a maxne maržu odpojenia preťaženia (baseline 641+marža; ampérová ekvivalencia nie je overená). Nechá stock analogové okno plynu (1241) a lockout bit; Preskočiť lockout plynu použite len ak twist do toho okna nikdy nevstúpi.",
+  "presets.offroad_unlimit.summary": "Preskočí motor speed fade v oboch režimoch displeja (tri Apply miesta, aby analogový plyn v okne nechal plný FOC clamp), núti handshake TX bit VD04, remapuje fade z 60 na 99, nastaví limit prúdu jazdy na 32767 a pack 30 A. Nechá stock lockout a vetvy batérie, analogové okno plynu 1241 a maržu odpojenia 49. Tepelná ochrana, UV foldback, odpojenie preťaženia pri 691 shunt počtoch, PAS percentá/FOC škály a analogový lockout bmi stále platia.",
   "presets.stock.label": "Originálne hodnoty",
   "presets.stock.summary": "Vynuluje každé mapované pole na stock hodnoty firmvéru.",
   "pasChart.title": "Asistencia PAS 1–5",
@@ -138,7 +138,7 @@
   "hex.notInImage": "Adresa 0x{addr} v tomto HEX súbore nie je",
   "encode.multiple": "{label} musí byť násobkom {denom}",
   "encode.movs": "{label} sa nezmestí do Thumb movs imm8<<{shift}",
-  "encode.stockOrRange": "{label} 0 ponechá stock prevod 6200; prepísania musia byť 450–32767",
+  "encode.stockOrRange": "{label} 0 ponechá stock prevod 6204; prepísania musia byť 450–32767",
   "encode.mantissa": "{label} musí zachovať zdieľanú IEEE mantisu (platné percentá sú 10/20/40/80/160)",
   "encode.asrsPair": "{label} musí byť súčet dvoch mocnín dvoch, ktorý sa zmestí do dvoch asrs posunov",
   "patch.mismatch": "Tento HEX nezodpovedá mapovanému stock firmvéru na 0x{addr} ({id}). Úprava zamietnutá.",
@@ -180,7 +180,7 @@
     "PAS 0 je nula. PAS 6 je walk: RunRideControlLoop uloží 450 do wCurrentTarget (ride-state+0x12). ApplyAssistLevelTargets potom vynuluje percento a zapíše walk_assist_fraction_sixteenths plného prúdu (originál 3/16) do ostatných cieľových slov.",
     "Štartovacie hodnoty 1000 / 728 / 641 v InitializeRideDefaults nasejú fade RAM (0x200025AC / 0x2000258A / 0x20002588). RebuildWheelSpeedFadeThresholds ich znovu spočíta z kolesa×rýchlosti, takže flash konštanty neostanú. V tejto mape nie sú.",
     "Jazdné nastavenia menia každodennú rýchlosť/PAS/walk. Pokročilé sú FOC, stall, hall, časovanie impulzu kolesa a ochrany — zlé hodnoty môžu motor zastaviť, zrezať asistenciu alebo posunúť komutáciu.",
-    "Maximum VD04 je 60. Posuvník Rýchlostný limit mení len display-status porovnanie periódy. Živé zoslabovanie motora ide z fade tabuľky koleso×rýchlosť displeja. Odblokovanie pri 60 remapuje 60 na 99 pre fade a núti display TX bit 0x40000 vždy zapnutý (bcc→b na 0x10008824), aby handshake VD04 neostal v legal 25/PAS 1. Vypnúť speed fade prepíše dva krátke bcs v ApplyWheelSpeedFade na b (0x100088F6 a 0x10008922, rovnaké miesta ako donor patched HEX), takže taper sa preskočí pri display 25 aj 60. Analogový plyn je samostatný: slučka jazdy stavia (ADC−600)×2+800 keď PAS≠0 a ADC je v okne, PAS-full zdvihne FOC na PAS 5. Preskočiť lockout plynu nopsne bmi, ktoré mapu preskočí keď je dwAssistBits 0x40000 (assist slovo 0x20002690, nie display TX 0x40000); Off-road unlimit to aj stock okno 1241 nechá vypnuté, aby sedelo s donor HEX kde plyn už fungoval. Odblokovanie výkonu preskočí príznaky pretätia/podpätia batérie a foldback pri nízkom napätí; vetva zvyšovania môže stále ísť dole keď avg < UV."
+    "Maximum VD04 je 60. Posuvník Rýchlostný limit mení len display-status porovnanie periódy. Živé zoslabovanie motora ide z fade tabuľky koleso×rýchlosť displeja. Off-road unlimit zapíše handshake+60→99 (bcc→b na 0x10008824 a 60→99 na 0x10008890; last-speed RAM sa uloží ako 99, takže display 60 prerátava každý tik), trojmiestne vypnutie fade, limit prúdu jazdy 32767 a pack 30 A. Lockout a vetvy batérie ostanú stock. Ďalšie živé limitery: PAS percentá a PAS FOC škály (PAS1 40% z ~30 A je živý PAS1 FOC strop), tepelná/NTC, UV foldback a príznaky OV/UV batérie, odpojenie preťaženia pri 691 shunt počtoch, analogové okno 1241, ride-loop lockout bmi a FOC ISR torque-demand cap keď je lockout alebo ADC pod foc_throttle_gate_base (1240) alebo PAS 0. Analogový plyn je samostatný: slučka jazdy stavia (ADC−600)×2+800 keď PAS≠0 a ADC je v stock okne 1241, PAS-full zdvihne FOC na PAS 5. Preskočiť lockout plynu nopsne obe bmi miesta (slučka jazdy 0x1000330C a FOC ISR 0x10007D48), ktoré mapu preskočia/orežú keď je dwAssistBits 0x40000 (assist slovo 0x20002694, nie display TX 0x40000); Off-road unlimit ten checkbox nechá vypnutý. Odblokovanie výkonu preskočí príznaky pretätia/podpätia batérie a foldback pri nízkom napätí; vetva zvyšovania môže stále ísť dole keď avg < UV. Limit prúdu jazdy 0 ponechá odvodené g_wFullCurrentLimit; 450–32767 nahradí ConvertFloatToSignedInt Thumb uint16. Display max-speed sa prijme, len keď je UART bajt väčší ako 10."
   ],
   "firmwareLabel": "Stock Tongsheng TSDZ8",
   "parameters": {
@@ -260,25 +260,25 @@
       "label": "Odblokovať rýchlosť, keď displej pošle 60 km/h",
       "unit": "",
       "summary": "Núti display TX bit 0x40000 vždy zapnutý, aby handshake VD04 neostal v legal 25/PAS 1, a remapuje fade z 60 na 99 keď displej pošle 60. Taper motora je remap 60→99, pokiaľ nie je zapnuté aj Vypnúť speed fade (to preskočí Apply taper v oboch režimoch displeja).",
-      "notes": "Site 0x10008824 je bcc→b, takže UpdateDisplayWheelPeriodStatusBit vždy OR-ne 0x40000 do display TX slova (rovnaký handshake ako donor patched HEX). Vymazanie bitu pri státí nechá VD04 v legal PAS-1 / 25 km/h, takže nikdy nepošle 60. Site 0x10008826 (protect-bit test) ostáva stock. Site 0x10008890 remapuje display 60→99 v RebuildWheelSpeedFadeThresholds. Nevypla fade; posunie bod taperu. Vypnúť speed fade patchuje ApplyWheelSpeedFade samostatne a tento remap neprepíše. Krátke b je scatter/RAM-safe."
+      "notes": "Site 0x10008824 je bcc→b, takže UpdateDisplayWheelPeriodStatusBit vždy OR-ne 0x40000 do display TX slova. Bajty na 0x10008826 ostanú stock, ale nespustia sa. Stock CLEAR pri státí pri tomto zapnutí nebeží. Site 0x10008890 remapuje display 60→99 v RebuildWheelSpeedFadeThresholds (len fade matematika; Apply nepreskočí). Po remape sa last-speed RAM uloží ako 99, takže živý display 60 prerátava každý tik; fade prahy ostanú 99. Handshake 25-vs-60 je odvodený: motor núti len TX 0x40000 na 0x20002B00. Nevypla fade; posunie bod taperu. Vypnúť speed fade patchuje ApplyWheelSpeedFade samostatne a tento remap neprepíše. Krátke b je scatter/RAM-safe."
     },
     "disable_speed_fade": {
       "label": "Vypnúť speed fade",
       "unit": "",
-      "summary": "Preskočí taper asistencie pri blížiacom sa cap v ApplyWheelSpeedFade pri display 25 aj 60. PAS percento, ride-current clamp, tepelné, batériové a protect limity stále platia.",
-      "notes": "ApplyWheelSpeedFade sa scatter-kopíruje so zvyškom ride okna do SRAM, takže tieto krátke b kódovania ostanú platné po kópii do RAM. Site 0x100088F6 je bcs→b na 0x10008916 (vždy uloží plný assist span; stock bcs 0x100088fe je 02 D2). Site 0x10008922 je bcs→b na 0x1000893e (vždy nechá source current; stock bcs 0x1000892c je 03 D2). Rovnaké dve miesta ako donor patched HEX. Nepatchuje RebuildWheelSpeedFadeThresholds; Odblokovať pri 60 stále vlastní handshake a remap 60→99. 0x10008904 ostáva stock. Nie doslova vždy plný výkon motora — ostatné limitery ostávajú. On-road 25 aj off-road 60 preskočia motor fade."
+      "summary": "Preskočí taper asistencie pri blížiacom sa cap v ApplyWheelSpeedFade pri display 25 aj 60. Analogový plyn v okne nechá plný FOC clamp (span), nie PAS 1–5. PAS percento, ride-current clamp, tepelné, batériové a protect limity stále platia.",
+      "notes": "ApplyWheelSpeedFade sa kopíruje z flash do SRAM 0x200014EC (Rebuild alias je 0x2000146A), takže tieto krátke b kódovania ostanú platné po kópii do RAM. Tri miesta: 0x100088F6 02 D2→02 E0 (b 0x100088FE, načíta span do r5); 0x10008904 07 D2→07 E0 (b 0x10008916, uloží ten span na 0x20002734); 0x10008922 03 D2→0C E0 (b 0x1000893e, nechá source current). Cesta v okne načíta span a str na 0x20002734; else cesta nechá source current. Donor 0E E0 skočil na 0x10008916 s r5 ešte PAS a zapísal PAS 1–5 do FOC clampu. Nepatchuje RebuildWheelSpeedFadeThresholds; Odblokovať pri 60 stále vlastní handshake a remap 60→99. Nie doslova vždy plný výkon motora — ostatné limitery ostávajú. On-road 25 aj off-road 60 preskočia motor fade."
     },
     "skip_throttle_lockout_bit": {
       "label": "Preskočiť lockout plynu na assist bite",
       "unit": "",
-      "summary": "Nechá analogovú mapu plynu bežať aj keď je dwAssistBits 0x40000. Ten lockout bit nie je display TX 0x40000 handshake. PAS 0 plyn stále preskočí.",
-      "notes": "RunRideControlLoop na 0x1000330C je bmi skip po lsls dwAssistBits #13 (bit 18 = 0x40000 na 0x20002690). UpdateThrottleAdcWatchdog ten bit nastaví keď ADC > ~849 a vek je 6–159, a zmaže ho len keď ADC < 840. Rest ADC 850–1200 lockout zadrží, takže twist nikdy nestavia (ADC−600)×2+800. Nop (00 BF) nechá test okna ADC a PAS≠0. Display TX bit 0x40000 na 0x20002B00 je iné slovo. Ak je rest ADC už nad 840 po znížení podláh okna, kľud sa berie ako plyn zapnutý — zdvihnite throttle_lockout_release a všetky tri podlahy okna spolu."
+      "summary": "Nechá analogovú mapu plynu bežať aj keď je dwAssistBits 0x40000. Ten lockout bit je na 0x20002694; nie je to display TX 0x40000 handshake. PAS 0 plyn stále preskočí. Off-road unlimit tento checkbox nechá vypnutý.",
+      "notes": "RunRideControlLoop na 0x1000330C je bmi skip po lsls dwAssistBits #13 (bit 18 = 0x40000 na 0x20002694). ProcessFocCurrentControlIsr na 0x10007D48 je druhé miesto: ldr r1,[r7,#4]; lsls #13; bmi (02 D4→00 BF), aby ISR pri tom bite neorezal torque-demand. UpdateThrottleAdcWatchdog ten bit nastaví keď ADC > 819 (zdieľaný pool 0x10008994) a vek je 6–159, a zmaže ho len mimo tohto vekového pásma a ADC < 840. Rest ADC 850–1200 lockout zadrží, takže twist nikdy nestavia (ADC−600)×2+800. Nop (00 BF) nechá test okna ADC a PAS≠0. Display TX bit 0x40000 na 0x20002B00 je iné slovo. Off-road unlimit nechá obe miesta stock. Ak je rest ADC už nad 840 po znížení podláh okna, kľud sa berie ako plyn zapnutý — zdvihnite throttle_lockout_release a všetky tri podlahy okna spolu."
     },
     "ride_current_clamp": {
       "label": "Limit prúdu jazdy",
       "unit": "jednotky prúdu vo firmvéri",
-      "summary": "Horný limit prúdu v slučke jazdy (plyn aj PAS). 0 ponechá stock prevod 6200 firmvérových jednotiek. 32767 je maximum signed-16, takže analogová mapa plynu sa neoreže, ale ble požiadavku stále ohraničí.",
-      "notes": "ComputeMotorScaleTables: stock konvertuje pevnú float 6200.0 na 0x10003A44 (scale base+0x98) cez ConvertFloatToSignedInt do g_wFullCurrentLimit (0x200025E2). Je to konštanta, nie hodnota odvodená z pack prúdu. PAS 1–5 to skopíruje do g_wAssistCurrentTarget, potom RunRideControlLoop ble-obmedzí wCurrentTarget na obe. 0 nechá prevod. 450–32767 nahradí šesť bajtov movs/lsls/adds, takže ble ostane. Preskočenie tých ble nechá plyn stavať (ADC-600)*2+800 bez stropu a motor cuká. Konštanta walk +0x12 450 je samostatná. Môže prehriať riadiacu jednotku."
+      "summary": "Horný limit prúdu v slučke jazdy (plyn aj PAS). 0 ponechá stock prevod 6204 firmvérových jednotiek. 32767 je maximum signed-16, takže analogová mapa plynu sa neoreže, ale ble požiadavku stále ohraničí.",
+      "notes": "ComputeMotorScaleTables: stock konvertuje pevnú float 6204.0 na 0x10003A44 (scale base+0x98) cez ConvertFloatToSignedInt do g_wFullCurrentLimit (0x200025E2). Je to konštanta, nie hodnota odvodená z pack prúdu. PAS 1–5 to skopíruje do g_wAssistCurrentTarget, potom RunRideControlLoop ble-obmedzí wCurrentTarget na obe. 0 nechá prevod. 450–32767 nahradí šesť bajtov movs/lsls/adds, takže ble ostane. Preskočenie tých ble nechá plyn stavať (ADC-600)*2+800 bez stropu a motor cuká. Konštanta walk +0x12 450 je samostatná. Môže prehriať riadiacu jednotku."
     },
     "throttle_adc_low": {
       "label": "Spodný okraj ADC plynu",
@@ -314,7 +314,7 @@
       "label": "Spodná hranica fade asistencie",
       "unit": "jednotky firmvéru",
       "summary": "Minimálna asistencia, ktorá ostane, keď fade zoslabuje pri/nad stropom rýchlosti (originál 600). Zdvihnite, aby pri limite ostalo viac výkonu; nepoužíva sa, ak je zapnuté Vypnúť zoslabovanie pri rýchlosti.",
-      "notes": "ApplyWheelSpeedFade: movs r6,#imm; lsls #3. Originál 75<<3 = 600. Aplikuje sa, keď živá perióda kolesa je pod prahom fade-at-cap (menšia perióda = rýchlejšie / pri alebo nad stropom), a ako člen +600 v interpolácii fade. Nie je to spodná hranica pri nízkej rýchlosti. Preskočené pri PAS==6. Ľavý posun je fingerprint-zamknutý."
+      "notes": "ApplyWheelSpeedFade: movs r6,#imm; lsls #3. Originál 75<<3 = 600. Aplikuje sa, keď živá perióda kolesa je pod prahom fade-at-cap (menšia perióda = rýchlejšie / pri alebo nad stropom), a ako člen +600 v interpolácii fade. Nie je to spodná hranica pri nízkej rýchlosti. PAS==6 preskočí len 600 assist cestu; prúd môže stále klesať, kým nie je zapnuté disable-fade miesto 3. Ľavý posun je fingerprint-zamknutý."
     },
     "thermal_protect_low_band": {
       "label": "Spodné tepelné pásmo",
@@ -422,7 +422,7 @@
       "label": "FOC škála PAS 4",
       "unit": "%",
       "summary": "FOC strop prúdu pre PAS 4 ako percento maxima (originál 90%). Nezávislý IEEE double. Horné slová PAS 1/3 sú samostatné posuvníky; zdieľajú mantisu 0x9999999A. PAS 2 je posun, nie dátové slovo.",
-      "notes": "ApplyAssistLevelTargets PAS==4 násobí max prúd little-endian double (originál 0.9). Pri originálnych 22 A je clamp 6200 už pod 0.9× odvodeného stropu, takže posuvník je neaktívny, kým nezvýšite Limit prúdu jazdy. Nezamieňajte s percentom PAS 4 85."
+      "notes": "ApplyAssistLevelTargets PAS==4 násobí max prúd little-endian double (originál 0.9). Pri originálnych 22 A je clamp 6204 už pod 0.9× odvodeného stropu, takže posuvník je neaktívny, kým nezvýšite Limit prúdu jazdy. Nezamieňajte s percentom PAS 4 85."
     },
     "throttle_adc_watchdog_age": {
       "label": "Vek watchdogu ADC plynu",
@@ -434,7 +434,7 @@
       "label": "Vek poruchy ADC plynu",
       "unit": "tiky",
       "summary": "Debounce, keď ADC plynu ostane nad prahom mimo rozsahu (originál 100 tikov). Nie je to časovač chýbajúcej vzorky.",
-      "notes": "UpdateThrottleAdcWatchdog: cmp r0,#imm po veku mimo rozsahu. Zapíše dwAssistBits 0x40000 na 0x20002690, keď ADC > throttle_overrange toľko tikov. Nie je to časovač chýbajúcej / starej vzorky ADC."
+      "notes": "UpdateThrottleAdcWatchdog: cmp r0,#imm po veku mimo rozsahu. Zapíše dwAssistBits 0x40000 na 0x20002694, keď ADC > throttle_overrange toľko tikov. Nie je to časovač chýbajúcej / starej vzorky ADC."
     },
     "battery_voltage_window": {
       "label": "Okno napätia batérie",
@@ -518,13 +518,13 @@
       "label": "PAS 1 FOC škála",
       "unit": "%",
       "summary": "FOC strop prúdu pre PAS 1 ako percento maxima (originál 40%). Len horné slovo; zdieľaná mantisa 0x9999999A je zamknutá. Platné percentá sú 10/20/40/80/160.",
-      "notes": "ApplyAssistLevelTargets PAS==1 násobí max prúd double (mantisa 0x10002FD0, toto horné slovo). Nie je to PAS 1 percento 30. Kódovanie odmietne hodnoty s iným IEEE dolným slovom. Pri originálnych 22 A / clampe 6200 je tento 40% strop živý FOC strop PAS 1; PAS 3/4 ostávajú obmedzené clampom."
+      "notes": "ApplyAssistLevelTargets PAS==1 násobí max prúd double (mantisa 0x10002FD0, toto horné slovo). Nie je to PAS 1 percento 30. Kódovanie odmietne hodnoty s iným IEEE dolným slovom. Pri originálnych 22 A / clampe 6204 je tento 40% strop živý FOC strop PAS 1; PAS 3/4 ostávajú obmedzené clampom."
     },
     "pas3_foc_scale": {
       "label": "PAS 3 FOC škála",
       "unit": "%",
       "summary": "FOC strop prúdu pre PAS 3 ako percento maxima (originál 80%). Len horné slovo; zdieľaná mantisa 0x9999999A je zamknutá. Platné percentá sú 10/20/40/80/160.",
-      "notes": "ApplyAssistLevelTargets PAS==3 používa (DAT_10002fd0, toto slovo). Od pas1_foc_scale je nezávislé okrem zamknutej mantisy. Pri originálnych 22 A je clamp 6200 už pod 0.8× odvodeného stropu, takže zdvihnutie je neaktívne, kým nezvýšite Limit prúdu jazdy."
+      "notes": "ApplyAssistLevelTargets PAS==3 používa (DAT_10002fd0, toto slovo). Od pas1_foc_scale je nezávislé okrem zamknutej mantisy. Pri originálnych 22 A je clamp 6204 už pod 0.8× odvodeného stropu, takže zdvihnutie je neaktívne, kým nezvýšite Limit prúdu jazdy."
     },
     "pack_uv_cutoff_v": {
       "label": "UV odrez batérie",
@@ -542,7 +542,7 @@
       "label": "Max prúd packu",
       "unit": "A",
       "summary": "Max prúd v tabuľke škál (originál 22.0 A). Riziko: odvodené signed-16 bunky pretečú nad ~71 A. Môže prehriať riadiacu jednotku.",
-      "notes": "Float32 22.0 na 0x10003A18; jedinečný ldr v LoadMotorScaleDefaults. ComputeMotorScaleTables z toho urobí g_wMaxCurrentSetpoint (stock ≈10147; sxth wrap nad ~71 A). Strop 30 A ostáva pod wrapom. Limit prúdu jazdy je samostatný int16 z pevnej float 6200.0. Samotné zvýšenie najmä dvíha PAS FOC stropy ako zlomky max prúdu; ride-loop clamp 6200 stále viaže, kým nezmeníte Ride current clamp."
+      "notes": "Float32 22.0 na 0x10003A18; jedinečný ldr v LoadMotorScaleDefaults. ComputeMotorScaleTables z toho urobí g_wMaxCurrentSetpoint (stock ≈10147; sxth wrap nad ~71 A). Strop 30 A ostáva pod wrapom. Limit prúdu jazdy je samostatný int16 z pevnej float 6204.0. Zvýšenie na 30 A dvíha FOC zlomky g_wMaxCurrentSetpoint; pri predvoľbe Off-road unlimit je ride clamp už 32767, takže ride-loop clip 6204 je preč."
     },
     "torque_sensor_gain_eighths": {
       "label": "Zisk krútiaceho snímača",
@@ -554,7 +554,7 @@
       "label": "Zlomok prúdu walk",
       "unit": "šestnástiny",
       "summary": "Walk prúd ako toľko šestnástin plného prúdu (originál 3 = 3/16). Obmedzí walk, keď je pod cieľom 450.",
-      "notes": "ApplyAssistLevelTargets PAS==6: asrs #3 + asrs #4 z g_wFullCurrentLimit do g_wAssistCurrentTarget. Originál 3/16. Pri stocke inertné, lebo 3/16 z 6200 je nad walk cieľom 450. Samostatný walk FOC strop walk_foc_scale_sixteenths (originál 1/16) je nezávislý."
+      "notes": "ApplyAssistLevelTargets PAS==6: asrs #3 + asrs #4 z g_wFullCurrentLimit do g_wAssistCurrentTarget. Originál 3/16. Pri stocke inertné, lebo 3/16 z 6204 je nad walk cieľom 450. Samostatný walk FOC strop walk_foc_scale_sixteenths (originál 1/16) je nezávislý."
     },
     "pack_ov_cutoff_v": {
       "label": "OV odrez batérie",
@@ -698,7 +698,7 @@
       "label": "PAS 2 FOC škála",
       "unit": "polenia",
       "summary": "FOC strop prúdu pre PAS 2 ako max_prúd / 2^n (originál 1 → 50%). Používa ScaleDoubleByPowerTwo, nie soft-float dátové slovo.",
-      "notes": "ApplyAssistLevelTargets PAS==2: movs r2,#(n-1); mvns r2,r2 → ScaleDoubleByPowerTwo(..., -n). Originál movs #0; mvns → -1 → polovica max prúdu. Platné n 1–4 (50%/25%/12.5%/6.25%). Polovička mvns je fingerprint-zamknutá. Pri originálnych 22 A / clampe 6200 je tento 50% strop často živý FOC strop PAS 2."
+      "notes": "ApplyAssistLevelTargets PAS==2: movs r2,#(n-1); mvns r2,r2 → ScaleDoubleByPowerTwo(..., -n). Originál movs #0; mvns → -1 → polovica max prúdu. Platné n 1–4 (50%/25%/12.5%/6.25%). Polovička mvns je fingerprint-zamknutá. Pri originálnych 22 A / clampe 6204 je tento 50% strop často živý FOC strop PAS 2."
     },
     "fade_throttle_adc_low": {
       "label": "Fade spodný okraj ADC plynu",

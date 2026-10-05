@@ -14,7 +14,7 @@
   "presets.hint": "Click a preset to apply it. Other fields stay as they are. Off-road / private property only.",
   "presets.applied": "Applied",
   "presets.offroad_unlimit.label": "Off-road unlimit",
-  "presets.offroad_unlimit.summary": "Skip motor speed fade in both display modes (same Apply patches as donor HEX), force the VD04 handshake TX bit, remap fade math from 60 to 99, set ride current clamp to 32767, skip battery over/under-voltage guards, raise pack max current to 30 A, and max the overload cutout margin (stock trip baseline 641+margin; amp equivalence unverified). Leaves the stock analog throttle window (1241) and lockout bit; use Skip throttle assist-bit lockout only if twist never enters that window.",
+  "presets.offroad_unlimit.summary": "Skip motor speed fade in both display modes (three Apply sites so in-window throttle keeps the full FOC clamp), force the VD04 handshake TX bit, remap fade math from 60 to 99, set ride current clamp to 32767, and pack 30 A. Leaves lockout and battery branches stock, analog throttle window 1241, and overload margin 49. Thermal, UV foldback, overload at 691 shunt counts, PAS percents/FOC scales, and the analog lockout bmi still apply.",
   "presets.stock.label": "Stock defaults",
   "presets.stock.summary": "Reset every mapped field to the stock firmware values.",
   "pasChart.title": "PAS 1–5 assist",
@@ -138,7 +138,7 @@
   "hex.notInImage": "Address 0x{addr} is not in this HEX image",
   "encode.multiple": "{label} must be a multiple of {denom}",
   "encode.movs": "{label} does not fit in a Thumb movs imm8<<{shift}",
-  "encode.stockOrRange": "{label} 0 keeps the stock 6200 convert; overrides must be 450–32767",
+  "encode.stockOrRange": "{label} 0 keeps the stock 6204 convert; overrides must be 450–32767",
   "encode.mantissa": "{label} must keep the shared IEEE mantissa (valid percents are 10/20/40/80/160)",
   "encode.asrsPair": "{label} must be a sum of two powers of two that fit two asrs shifts",
   "patch.mismatch": "This HEX does not match the mapped stock firmware at 0x{addr} ({id}). Refusing to patch.",
@@ -180,7 +180,7 @@
     "PAS 0 is zero. PAS 6 is walk: RunRideControlLoop stores 450 into wCurrentTarget (ride-state+0x12). ApplyAssistLevelTargets then zeros the percent cell and writes walk_assist_fraction_sixteenths of full current (stock 3/16) into the other target words.",
     "Startup 1000 / 728 / 641 in InitializeRideDefaults seed fade RAM (0x200025AC / 0x2000258A / 0x20002588). RebuildWheelSpeedFadeThresholds rebuilds them from wheel×speed, so the flash immediates do not stick. They are not in this map.",
     "Rider settings change everyday speed/PAS/walk behavior. Advanced tunables are FOC, stall, hall, wheel-pulse timing, and protection constants — wrong values can stall, cut assist, or rotate commutation.",
-    "The VD04 max speed byte is 60. Raising the Speed ceiling slider only changes the display-status period compare. Live assist taper follows the fade table from wheel×display speed. Unlimit-when-display-60 remaps a stored 60 to 99 for fade math and forces display TX bit 0x40000 always on (bcc→b at 0x10008824) so the VD04 handshake is not stuck in legal 25/PAS 1. Disable-fade rewrites two short bcs in ApplyWheelSpeedFade to b (0x100088F6 and 0x10008922, same sites as donor patched HEX) so taper is skipped on both display 25 and 60. Analog throttle overlay is separate: the ride loop stages (ADC−600)×2+800 when PAS≠0 and ADC is in window, then PAS-full bumps FOC to PAS 5. Skip-throttle-lockout nops the bmi that skips that map when dwAssistBits 0x40000 is set (assist word 0x20002690, not the display TX 0x40000); Off-road unlimit leaves that and the stock 1241 window off so it matches the donor HEX that already had working throttle. Unlimit-power skips the battery over/under-voltage flags and low-voltage foldback; its raise-slew site can still wind the limit down when avg < UV. Ride current clamp 0 keeps the derived g_wFullCurrentLimit; 450–32767 replaces ConvertFloatToSignedInt with a Thumb uint16. Display max-speed is accepted only when the UART byte is greater than 10."
+    "The VD04 max speed byte is 60. Raising the Speed ceiling slider only changes the display-status period compare. Live assist taper follows the fade table from wheel×display speed. Off-road unlimit writes handshake+60→99 (bcc→b at 0x10008824 and 60→99 at 0x10008890; last-speed RAM is stored as 99 so display 60 rebuilds every tick), three-site disable-fade, ride clamp 32767, and pack 30 A. Lockout and battery branches stay stock. Remaining live limiters: PAS percents and PAS FOC scales (PAS1 40% of ~30 A is the live PAS1 FOC wall), thermal/NTC, battery UV foldback and OV/UV flags, overload cutout at 691 shunt counts, analog window 1241, ride-loop lockout bmi, and FOC ISR torque-demand cap when lockout or ADC below foc_throttle_gate_base (1240) or PAS 0. Analog throttle overlay is separate: the ride loop stages (ADC−600)×2+800 when PAS≠0 and ADC is in the stock 1241 window, then PAS-full bumps FOC to PAS 5. Skip-throttle-lockout nops both bmi sites (ride loop 0x1000330C and FOC ISR 0x10007D48) that skip/cap when dwAssistBits 0x40000 is set (assist word 0x20002694, not the display TX 0x40000); Off-road unlimit leaves that checkbox off. Unlimit-power skips the battery over/under-voltage flags and low-voltage foldback; its raise-slew site can still wind the limit down when avg < UV. Ride current clamp 0 keeps the derived g_wFullCurrentLimit; 450–32767 replaces ConvertFloatToSignedInt with a Thumb uint16. Display max-speed is accepted only when the UART byte is greater than 10."
   ],
   "firmwareLabel": "Tongsheng TSDZ8 stock",
   "parameters": {
@@ -260,25 +260,25 @@
       "label": "Unlimit speed when display sends 60 km/h",
       "unit": "",
       "summary": "Force display TX bit 0x40000 always on so the VD04 handshake is not stuck in legal 25/PAS 1, and remap fade math from 60 to 99 when the display sends 60. Motor taper is the 60→99 remap unless Disable speed fade is also on (that skips Apply taper in both display modes).",
-      "notes": "Site 0x10008824 is bcc→b so UpdateDisplayWheelPeriodStatusBit always ORs 0x40000 into the display TX word (same handshake as donor patched HEX). Clearing that bit at standstill keeps the VD04 in legal PAS-1 / 25 km/h so it never sends 60. Site 0x10008826 (protect-bit test) stays stock. Site 0x10008890 remaps a live display 60 to 99 in RebuildWheelSpeedFadeThresholds. Does not disable fade; it moves the taper point. Disable speed fade patches ApplyWheelSpeedFade separately and does not overwrite this remap. Short b is scatter/RAM-safe."
+      "notes": "Site 0x10008824 is bcc→b so UpdateDisplayWheelPeriodStatusBit always ORs 0x40000 into the display TX word. Bytes at 0x10008826 stay stock but are not executed. Stock standstill CLEAR does not run when this is on. Site 0x10008890 remaps a live display 60 to 99 in RebuildWheelSpeedFadeThresholds (fade math only; it does not skip Apply). After remap, last-speed RAM is stored as 99, so a live display 60 rebuilds every tick; the fade thresholds stay 99. Handshake 25-vs-60 is inferred: the motor only forces TX 0x40000 on 0x20002B00. Does not disable fade; it moves the taper point. Disable speed fade patches ApplyWheelSpeedFade separately and does not overwrite this remap. Short b is scatter/RAM-safe."
     },
     "disable_speed_fade": {
       "label": "Disable speed fade",
       "unit": "",
-      "summary": "Skip the near-cap assist taper in ApplyWheelSpeedFade on both display 25 and 60. PAS percent, ride-current clamp, thermal, battery, and protect limits still apply.",
-      "notes": "ApplyWheelSpeedFade is scatter-copied with the rest of the ride window to SRAM, so these short b encodings stay valid after the RAM copy. Site 0x100088F6 is bcs→b to 0x10008916 (always store full assist span; stock bcs 0x100088fe is 02 D2). Site 0x10008922 is bcs→b to 0x1000893e (always keep source current; stock bcs 0x1000892c is 03 D2). Same two sites as donor patched HEX. Does not patch RebuildWheelSpeedFadeThresholds; Unlimit-when-display-60 still owns the handshake and 60→99 remap. 0x10008904 stays stock. Not literally full motor power — other limiters remain. On-road 25 and off-road 60 both skip motor fade."
+      "summary": "Skip the near-cap assist taper in ApplyWheelSpeedFade on both display 25 and 60. In-window analog throttle keeps the full FOC clamp (span), not PAS 1–5. PAS percent, ride-current clamp, thermal, battery, and protect limits still apply.",
+      "notes": "ApplyWheelSpeedFade is flash-copied to SRAM 0x200014EC (Rebuild alias is 0x2000146A), so these short b encodings stay valid after the RAM copy. Three sites: 0x100088F6 02 D2→02 E0 (b 0x100088FE, load span into r5); 0x10008904 07 D2→07 E0 (b 0x10008916, store that span to 0x20002734); 0x10008922 03 D2→0C E0 (b 0x1000893e, keep source current). In-window path loads span then str to 0x20002734; else path keeps source current. Donor 0E E0 jumped to 0x10008916 with r5 still PAS and wrote PAS 1–5 into the FOC clamp. Does not patch RebuildWheelSpeedFadeThresholds; Unlimit-when-display-60 still owns the handshake and 60→99 remap. Not literally full motor power — other limiters remain. On-road 25 and off-road 60 both skip motor fade."
     },
     "skip_throttle_lockout_bit": {
       "label": "Skip throttle assist-bit lockout",
       "unit": "",
-      "summary": "Let the analog throttle map run even when dwAssistBits 0x40000 is set. That lockout bit is not the display TX 0x40000 handshake. PAS 0 still skips throttle.",
-      "notes": "RunRideControlLoop at 0x1000330C is bmi skip after lsls dwAssistBits #13 (bit 18 = 0x40000 on 0x20002690). UpdateThrottleAdcWatchdog sets that bit when ADC > ~849 while the age counter is 6–159, and clears it only if ADC < 840. A rest ADC of 850–1200 latches the lockout so twist never stages (ADC−600)×2+800. Nop (00 BF) leaves the ADC window and PAS≠0 tests. Display TX bit 0x40000 at 0x20002B00 is a different word. If rest ADC is already above 840 after lowering the window floors, idle is treated as throttle-on — raise throttle_lockout_release and the three window floors together."
+      "summary": "Let the analog throttle map run even when dwAssistBits 0x40000 is set. That lockout bit lives at 0x20002694; it is not the display TX 0x40000 handshake. PAS 0 still skips throttle. Off-road unlimit leaves this checkbox off.",
+      "notes": "RunRideControlLoop at 0x1000330C is bmi skip after lsls dwAssistBits #13 (bit 18 = 0x40000 on 0x20002694). ProcessFocCurrentControlIsr at 0x10007D48 is the second site: ldr r1,[r7,#4]; lsls #13; bmi (02 D4→00 BF) so the ISR does not torque-demand-cap when that bit is set. UpdateThrottleAdcWatchdog sets that bit when ADC > 819 (shared pool 0x10008994) while the age counter is 6–159, and clears it only outside that age band and ADC < 840. A rest ADC of 850–1200 latches the lockout so twist never stages (ADC−600)×2+800. Nop (00 BF) leaves the ADC window and PAS≠0 tests. Display TX bit 0x40000 at 0x20002B00 is a different word. Off-road unlimit leaves both sites stock. If rest ADC is already above 840 after lowering the window floors, idle is treated as throttle-on — raise throttle_lockout_release and the three window floors together."
     },
     "ride_current_clamp": {
       "label": "Ride current clamp",
       "unit": "firmware current units",
-      "summary": "Upper clamp on ride-loop current (throttle and PAS). 0 keeps the stock 6200 firmware-unit convert. 32767 is signed-16 max so the analog throttle map is not cut while the ble still bounds demand.",
-      "notes": "ComputeMotorScaleTables: stock converts the fixed float 6200.0 at 0x10003A44 (scale base+0x98) via ConvertFloatToSignedInt into g_wFullCurrentLimit (0x200025E2). That is a constant, not a pack-current-derived value. PAS 1–5 copies that word into g_wAssistCurrentTarget, then RunRideControlLoop ble-clamps wCurrentTarget to both. 0 leaves the convert. 450–32767 replaces the six bytes with movs r0,#hi; lsls #8; adds #lo so the ble still runs. Skipping those ble instructions lets throttle stage (ADC-600)*2+800 unbounded and the motor twitches. Walk’s +0x12 450 immediate is separate. Can overheat the controller."
+      "summary": "Upper clamp on ride-loop current (throttle and PAS). 0 keeps the stock 6204 firmware-unit convert. 32767 is signed-16 max so the analog throttle map is not cut while the ble still bounds demand.",
+      "notes": "ComputeMotorScaleTables: stock converts the fixed float 6204.0 at 0x10003A44 (scale base+0x98) via ConvertFloatToSignedInt into g_wFullCurrentLimit (0x200025E2). That is a constant, not a pack-current-derived value. PAS 1–5 copies that word into g_wAssistCurrentTarget, then RunRideControlLoop ble-clamps wCurrentTarget to both. 0 leaves the convert. 450–32767 replaces the six bytes with movs r0,#hi; lsls #8; adds #lo so the ble still runs. Skipping those ble instructions lets throttle stage (ADC-600)*2+800 unbounded and the motor twitches. Walk’s +0x12 450 immediate is separate. Can overheat the controller."
     },
     "throttle_adc_low": {
       "label": "Throttle ADC low edge",
@@ -314,7 +314,7 @@
       "label": "Speed-fade assist floor",
       "unit": "firmware units",
       "summary": "Minimum assist left when speed-fade cuts near/over the cap (stock 600). Raise to keep more power as you near the limit; unused if Disable speed fade is on.",
-      "notes": "ApplyWheelSpeedFade: movs r6,#imm; lsls #3. Stock 75<<3 = 600. Applied when live wheel period is below the fade-at-cap threshold (smaller period = faster / at-or-over the speed cap), and as the +600 term in the fade interpolate. Not a low-speed floor. Skipped while PAS==6. Left-shift is fingerprint-locked."
+      "notes": "ApplyWheelSpeedFade: movs r6,#imm; lsls #3. Stock 75<<3 = 600. Applied when live wheel period is below the fade-at-cap threshold (smaller period = faster / at-or-over the speed cap), and as the +600 term in the fade interpolate. Not a low-speed floor. PAS==6 skips the 600 assist path only; current can still taper unless disable-fade site 3 is on. Left-shift is fingerprint-locked."
     },
     "thermal_protect_low_band": {
       "label": "Thermal protect low band",
@@ -422,7 +422,7 @@
       "label": "PAS 4 FOC scale",
       "unit": "%",
       "summary": "FOC current cap for PAS 4 as a percent of max current (stock 90%). Independent IEEE double. PAS 1/3 high words are separate sliders; they share mantissa low-word 0x9999999A. PAS 2 is a shift, not a data word.",
-      "notes": "ApplyAssistLevelTargets PAS==4 multiplies max current by this little-endian double (stock 0.9). At stock 22 A the 6200 ride-current clamp already sits below 0.9× the derived ceiling, so this slider is inert until Ride current clamp is raised. Do not confuse with PAS 4 assist percent 85."
+      "notes": "ApplyAssistLevelTargets PAS==4 multiplies max current by this little-endian double (stock 0.9). At stock 22 A the 6204 ride-current clamp already sits below 0.9× the derived ceiling, so this slider is inert until Ride current clamp is raised. Do not confuse with PAS 4 assist percent 85."
     },
     "throttle_adc_watchdog_age": {
       "label": "Throttle-ADC watchdog age",
@@ -434,7 +434,7 @@
       "label": "Throttle-ADC fault age",
       "unit": "ticks",
       "summary": "Debounce for throttle ADC stuck above Throttle overrange (stock 100 ticks). Not a stale/missing-sample timer.",
-      "notes": "UpdateThrottleAdcWatchdog: cmp r0,#imm after the overrange age. Writes dwAssistBits 0x40000 on 0x20002690 when ADC > throttle_overrange for this many ticks. Not a missing-sample / stale-ADC timer."
+      "notes": "UpdateThrottleAdcWatchdog: cmp r0,#imm after the overrange age. Writes dwAssistBits 0x40000 on 0x20002694 when ADC > throttle_overrange for this many ticks. Not a missing-sample / stale-ADC timer."
     },
     "battery_voltage_window": {
       "label": "Battery voltage window",
@@ -518,13 +518,13 @@
       "label": "PAS 1 FOC scale",
       "unit": "%",
       "summary": "FOC current cap for PAS 1 as a percent of max current (stock 40%). High word only; shared mantissa 0x9999999A is locked. Valid percents are 10/20/40/80/160.",
-      "notes": "ApplyAssistLevelTargets PAS==1 multiplies max current by the double (mantissa at 0x10002FD0, this high word). Not the PAS 1 assist percent 30. Encoding rejects values whose IEEE low word would differ from the shared mantissa. At stock 22 A / 6200 clamp this 40% cap is the live PAS 1 FOC ceiling; PAS 3/4 stay clamp-limited."
+      "notes": "ApplyAssistLevelTargets PAS==1 multiplies max current by the double (mantissa at 0x10002FD0, this high word). Not the PAS 1 assist percent 30. Encoding rejects values whose IEEE low word would differ from the shared mantissa. At stock 22 A / 6204 clamp this 40% cap is the live PAS 1 FOC ceiling; PAS 3/4 stay clamp-limited."
     },
     "pas3_foc_scale": {
       "label": "PAS 3 FOC scale",
       "unit": "%",
       "summary": "FOC current cap for PAS 3 as a percent of max current (stock 80%). High word only; shared mantissa 0x9999999A is locked. Valid percents are 10/20/40/80/160.",
-      "notes": "ApplyAssistLevelTargets PAS==3 uses (DAT_10002fd0, this word). Independent of pas1_foc_scale aside from the locked mantissa. At stock 22 A the 6200 ride-current clamp already sits below 0.8× the derived ceiling, so raising this is inert until Ride current clamp is raised."
+      "notes": "ApplyAssistLevelTargets PAS==3 uses (DAT_10002fd0, this word). Independent of pas1_foc_scale aside from the locked mantissa. At stock 22 A the 6204 ride-current clamp already sits below 0.8× the derived ceiling, so raising this is inert until Ride current clamp is raised."
     },
     "pack_uv_cutoff_v": {
       "label": "Pack UV cutoff",
@@ -542,7 +542,7 @@
       "label": "Pack max current",
       "unit": "A",
       "summary": "Scale-table max current setpoint (stock 22.0 A). High risk: derived signed-16 cells wrap above ~71 A. Can overheat the controller.",
-      "notes": "Float32 22.0 at 0x10003A18; unique ldr in LoadMotorScaleDefaults into the scale table. ComputeMotorScaleTables converts it into g_wMaxCurrentSetpoint (stock ≈10147 counts; sxth wraps above ~71 A). Cap 30 A stays well under the wrap. Ride current clamp is a separate int16 override from the fixed 6200.0 float. Raising this alone mainly lifts PAS FOC caps that are fractions of max current; the ride-loop 6200 clamp still binds until Ride current clamp is raised."
+      "notes": "Float32 22.0 at 0x10003A18; unique ldr in LoadMotorScaleDefaults into the scale table. ComputeMotorScaleTables converts it into g_wMaxCurrentSetpoint (stock ≈10147 counts; sxth wraps above ~71 A). Cap 30 A stays well under the wrap. Ride current clamp is a separate int16 override from the fixed 6204.0 float. Raising this to 30 A lifts FOC fractions of g_wMaxCurrentSetpoint; with the Off-road unlimit preset the ride clamp is already 32767 so the ride-loop 6204 clip is gone."
     },
     "torque_sensor_gain_eighths": {
       "label": "Torque sensor gain",
@@ -554,7 +554,7 @@
       "label": "Walk current fraction",
       "unit": "sixteenths",
       "summary": "Walk assist current as this many sixteenths of full current (stock 3 = 3/16). Caps walk when below the 450 walk-assist target.",
-      "notes": "ApplyAssistLevelTargets PAS==6: asrs #3 + asrs #4 of g_wFullCurrentLimit into g_wAssistCurrentTarget. Stock 3/16. Inert at stock because 3/16 of 6200 is above the 450 walk target; it only clamps if Ride current clamp is below about 2400. Must be a sum of two powers of two. Separate walk FOC cap walk_foc_scale_sixteenths (stock 1/16 of max current) is independent."
+      "notes": "ApplyAssistLevelTargets PAS==6: asrs #3 + asrs #4 of g_wFullCurrentLimit into g_wAssistCurrentTarget. Stock 3/16. Inert at stock because 3/16 of 6204 is above the 450 walk target; it only clamps if Ride current clamp is below about 2400. Must be a sum of two powers of two. Separate walk FOC cap walk_foc_scale_sixteenths (stock 1/16 of max current) is independent."
     },
     "pack_ov_cutoff_v": {
       "label": "Pack OV cutoff",
@@ -698,7 +698,7 @@
       "label": "PAS 2 FOC scale",
       "unit": "halvings",
       "summary": "PAS 2 FOC current cap as max_current / 2^n (stock 1 → 50%). Uses ScaleDoubleByPowerTwo, not a soft-float data word.",
-      "notes": "ApplyAssistLevelTargets PAS==2: movs r2,#(n-1); mvns r2,r2 → ScaleDoubleByPowerTwo(..., -n). Stock movs #0; mvns → -1 → half of max current. Valid n 1–4 (50%/25%/12.5%/6.25%). The mvns halfword is fingerprint-locked. At stock 22 A / 6200 clamp this 50% cap is often the live PAS 2 FOC ceiling."
+      "notes": "ApplyAssistLevelTargets PAS==2: movs r2,#(n-1); mvns r2,r2 → ScaleDoubleByPowerTwo(..., -n). Stock movs #0; mvns → -1 → half of max current. Valid n 1–4 (50%/25%/12.5%/6.25%). The mvns halfword is fingerprint-locked. At stock 22 A / 6204 clamp this 50% cap is often the live PAS 2 FOC ceiling."
     },
     "fade_throttle_adc_low": {
       "label": "Fade throttle ADC low edge",

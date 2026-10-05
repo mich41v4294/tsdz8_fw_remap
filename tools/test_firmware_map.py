@@ -300,9 +300,9 @@ class ParameterMapTests(unittest.TestCase):
         self.assertEqual(values["unlimit_speed_display_60"], 1)
         self.assertEqual(values["disable_speed_fade"], 1)
         self.assertEqual(values["ride_current_clamp"], 32767)
-        self.assertEqual(values["skip_battery_voltage_guards"], 1)
+        self.assertEqual(values["skip_battery_voltage_guards"], 0)
         self.assertEqual(values["pack_max_current_a"], 30)
-        self.assertEqual(values["overload_cutout_margin"], 255)
+        self.assertEqual(values["overload_cutout_margin"], 49)
         self.assertEqual(values["skip_throttle_lockout_bit"], 0)
         self.assertEqual(values["throttle_adc_low"], -1241)
         self.assertEqual(values["fade_throttle_adc_low"], -1241)
@@ -313,13 +313,17 @@ class ParameterMapTests(unittest.TestCase):
                 "unlimit_speed_display_60",
                 "disable_speed_fade",
                 "ride_current_clamp",
-                "skip_battery_voltage_guards",
                 "pack_max_current_a",
-                "overload_cutout_margin",
             },
         )
         raised = apply_preset("offroad_unlimit", {**default_values(), "speed_ceiling_kmh": 60})
         self.assertEqual(raised["speed_ceiling_kmh"], 25)
+
+    def test_skip_throttle_lockout_has_ride_and_foc_sites(self) -> None:
+        spec = next(p for p in PARAMETER_MAP["parameters"] if p["id"] == "skip_throttle_lockout_bit")
+        self.assertEqual([s["address"] for s in spec["sites"]], ["0x1000330C", "0x10007D48"])
+        self.assertEqual(spec["sites"][1]["originalBytes"], ["0x02", "0xD4"])
+        self.assertEqual(spec["sites"][1]["patchedBytes"], ["0x00", "0xBF"])
 
     def test_stock_preset_resets_other_changes(self) -> None:
         dirty = {**default_values(), "pas1_percent": 40, "ride_current_clamp": 32767}
@@ -564,16 +568,21 @@ class PatcherVsStockTests(unittest.TestCase):
             [0x55, 0x49, 0x09, 0x68, 0x49, 0x07, 0x03, 0xD5],
         )
         self.assertEqual(list(patched[0x10003A18 - FLASH_BASE : 0x10003A18 - FLASH_BASE + 4]), [0x00, 0x00, 0xF0, 0x41])
-        self.assertEqual(patched[0x100031E4 - FLASH_BASE], 255)
+        self.assertEqual(patched[0x100031E4 - FLASH_BASE], 0x31)
         self.assertEqual(list(patched[0x100031D6 - FLASH_BASE : 0x100031D6 - FLASH_BASE + 2]), [0x49, 0x01])
         self.assertEqual(
             list(patched[0x10008890 - FLASH_BASE : 0x10008890 - FLASH_BASE + 8]),
             [0x3C, 0x2D, 0x01, 0xD1, 0x63, 0x25, 0x00, 0xBF],
         )
         self.assertEqual(list(patched[0x10008898 - FLASH_BASE : 0x10008898 - FLASH_BASE + 4]), [0x3E, 0x49, 0x20, 0x46])
-        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x0E, 0xE0])
+        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x02, 0xE0])
+        self.assertEqual(list(patched[0x10008904 - FLASH_BASE : 0x10008904 - FLASH_BASE + 2]), [0x07, 0xE0])
         self.assertEqual(list(patched[0x10008922 - FLASH_BASE : 0x10008922 - FLASH_BASE + 2]), [0x0C, 0xE0])
         self.assertEqual(list(patched[0x1000330C - FLASH_BASE : 0x1000330C - FLASH_BASE + 2]), [0x2B, 0xD4])
+        self.assertEqual(list(patched[0x10007D48 - FLASH_BASE : 0x10007D48 - FLASH_BASE + 2]), [0x02, 0xD4])
+        self.assertEqual(list(patched[0x10002DA4 - FLASH_BASE : 0x10002DA4 - FLASH_BASE + 2]), [0x02, 0xDD])
+        self.assertEqual(list(patched[0x10002DC8 - FLASH_BASE : 0x10002DC8 - FLASH_BASE + 2]), [0x15, 0xDA])
+        self.assertEqual(list(patched[0x10002E12 - FLASH_BASE : 0x10002E12 - FLASH_BASE + 2]), [0x1E, 0xDA])
         self.assertEqual(list(patched[0x100033E4 - FLASH_BASE : 0x100033E4 - FLASH_BASE + 4]), [0x27, 0xFB, 0xFF, 0xFF])
         self.assertEqual(list(patched[0x100089B8 - FLASH_BASE : 0x100089B8 - FLASH_BASE + 4]), [0x27, 0xFB, 0xFF, 0xFF])
         self.assertEqual(patched[0x10007D34 - FLASH_BASE], 0x9B)
@@ -586,8 +595,8 @@ class PatcherVsStockTests(unittest.TestCase):
             [0x84, 0x42, 0x01, 0xD1, 0x8D, 0x42, 0x12, 0xD0],
         )
         self.assertEqual(list(patched[0x10008898 - FLASH_BASE : 0x10008898 - FLASH_BASE + 4]), [0x3E, 0x49, 0x20, 0x46])
-        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x0E, 0xE0])
-        self.assertEqual(list(patched[0x10008904 - FLASH_BASE : 0x10008904 - FLASH_BASE + 2]), [0x07, 0xD2])
+        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x02, 0xE0])
+        self.assertEqual(list(patched[0x10008904 - FLASH_BASE : 0x10008904 - FLASH_BASE + 2]), [0x07, 0xE0])
         self.assertEqual(list(patched[0x10008922 - FLASH_BASE : 0x10008922 - FLASH_BASE + 2]), [0x0C, 0xE0])
         self.assertEqual(patched[0x100088F0 - FLASH_BASE], 0x4B)
         self.assertEqual(list(patched[0x100088EA - FLASH_BASE : 0x100088EA - FLASH_BASE + 2]), [0x2D, 0x78])
@@ -599,6 +608,9 @@ class PatcherVsStockTests(unittest.TestCase):
         self.assertEqual(list(patched[0x1000330C - FLASH_BASE : 0x1000330C - FLASH_BASE + 2]), [0x00, 0xBF])
         self.assertEqual(list(patched[0x10003306 - FLASH_BASE : 0x10003306 - FLASH_BASE + 2]), [0x2E, 0xD2])
         self.assertEqual(list(patched[0x1000330E - FLASH_BASE : 0x1000330E - FLASH_BASE + 2]), [0x00, 0x2E])
+        self.assertEqual(list(patched[0x10007D48 - FLASH_BASE : 0x10007D48 - FLASH_BASE + 2]), [0x00, 0xBF])
+        self.assertEqual(list(patched[0x10007D46 - FLASH_BASE : 0x10007D46 - FLASH_BASE + 2]), [0x49, 0x03])
+        self.assertEqual(list(patched[0x10007D4A - FLASH_BASE : 0x10007D4A - FLASH_BASE + 2]), [0x01, 0x78])
         self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x02, 0xD2])
         self.assertEqual(list(patched[0x100033E4 - FLASH_BASE : 0x100033E4 - FLASH_BASE + 4]), [0x27, 0xFB, 0xFF, 0xFF])
 
@@ -617,7 +629,8 @@ class PatcherVsStockTests(unittest.TestCase):
             [0x3C, 0x2D, 0x01, 0xD1, 0x63, 0x25, 0x00, 0xBF],
         )
         self.assertEqual(list(patched[0x10008898 - FLASH_BASE : 0x10008898 - FLASH_BASE + 4]), [0x3E, 0x49, 0x20, 0x46])
-        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x0E, 0xE0])
+        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x02, 0xE0])
+        self.assertEqual(list(patched[0x10008904 - FLASH_BASE : 0x10008904 - FLASH_BASE + 2]), [0x07, 0xE0])
         self.assertEqual(list(patched[0x10008922 - FLASH_BASE : 0x10008922 - FLASH_BASE + 2]), [0x0C, 0xE0])
         overlay = overlay_ranges(bytes(patched))
         fade_hits = [h for h in overlay["hits"] if h["address"] == 0x10008890]
