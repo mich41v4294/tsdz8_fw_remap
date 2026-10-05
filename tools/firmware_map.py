@@ -718,7 +718,6 @@ def overlay_ranges(image: bytes | None = None) -> dict:
                             "second": rng["id"],
                         }
                     )
-                continue
             covered[pos] = idx
 
     hits: list[dict] = []

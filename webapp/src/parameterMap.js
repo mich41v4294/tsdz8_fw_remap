@@ -1,4 +1,4 @@
-import mapJson from "./parameter_map.json?v=27" with { type: "json" };
+import mapJson from "./parameter_map.json?v=28" with { type: "json" };
 import { HexError } from "./intelHex.js";
 import { t } from "./i18n.js";
 

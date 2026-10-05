@@ -97,7 +97,6 @@ export function buildOverlay(image) {
         if (other.id !== range.id) {
           overlaps.push({ address: FLASH_BASE + pos, first: other.id, second: range.id });
         }
-        continue;
       }
       rangeIndex[pos] = idx;
     }
