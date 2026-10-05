@@ -14,7 +14,7 @@
     "PAS 0 is zero. PAS 6 is walk: RunRideControlLoop stores 450 into wCurrentTarget (ride-state+0x12). ApplyAssistLevelTargets then zeros the percent cell, writes walk_assist_fraction_sixteenths of full current (stock 3/16) into g_wAssistCurrentTarget, and writes walk_foc_scale_sixteenths of max current (stock 1/16) into g_wScaledAssist.",
     "Startup 1000 / 728 / 641 in InitializeRideDefaults seed fade RAM (0x200025AC / 0x2000258A / 0x20002588). RebuildWheelSpeedFadeThresholds rebuilds them from wheel\u00d7speed, so the flash immediates do not stick. They are not in this map.",
     "Rider settings change everyday speed/PAS/walk behavior. Advanced tunables are FOC, stall, hall, wheel-pulse timing, PAS asymmetry, torque confirm, and protection constants \u2014 wrong values can stall, cut assist, or rotate commutation.",
-    "The VD04 max speed byte is 60. Raising the Speed ceiling slider only changes the display-status period compare. Live assist taper follows the fade table from wheel\u00d7display speed. Unlimit-when-display-60 remaps a stored 60 to 99 for fade math and forces display TX bit 0x40000 always on (bcc\u2192b at 0x10008824) so the VD04 handshake is not stuck in legal 25/PAS 1. Disable-fade is an 8-byte in-function gate at 0x10008890 (short PC-relative branches, valid after scatter-copy of Rebuild to SRAM 0x2000146A; no far BL). It zeros the fade period thresholds when the live display max is 60 so off-road has no taper; on-road 25 still uses stock ApplyWheelSpeedFade. Unlimit-power skips the battery over/under-voltage flags and low-voltage foldback; its raise-slew site can still wind the limit down when avg < UV. Ride current clamp 0 keeps the derived g_wFullCurrentLimit; 450\u201332767 replaces ConvertFloatToSignedInt with a Thumb uint16. Display max-speed is accepted only when the UART byte is greater than 10."
+    "The VD04 max speed byte is 60. Raising the Speed ceiling slider only changes the display-status period compare. Live assist taper follows the fade table from wheel\u00d7display speed. Unlimit-when-display-60 remaps a stored 60 to 99 for fade math and forces display TX bit 0x40000 always on (bcc\u2192b at 0x10008824) so the VD04 handshake is not stuck in legal 25/PAS 1. Disable-fade rewrites two short bcs in ApplyWheelSpeedFade to b (0x100088F6 and 0x10008922, same sites as donor patched HEX) so taper is skipped on both display 25 and 60. Unlimit-power skips the battery over/under-voltage flags and low-voltage foldback; its raise-slew site can still wind the limit down when avg < UV. Ride current clamp 0 keeps the derived g_wFullCurrentLimit; 450\u201332767 replaces ConvertFloatToSignedInt with a Thumb uint16. Display max-speed is accepted only when the UART byte is greater than 10."
   ],
   "presets": [
     {
@@ -1489,8 +1489,8 @@
       "step": 1,
       "defaultValue": 0,
       "confidence": "high",
-      "summary": "Force display TX bit 0x40000 always on so the VD04 handshake is not stuck in legal 25/PAS 1, and remap fade math from 60 to 99 when the display sends 60. Motor taper is the 60\u219299 remap; Disable speed fade overwrites that remap with a 60-gate.",
-      "notes": "Site 0x10008824 is bcc\u2192b so UpdateDisplayWheelPeriodStatusBit always ORs 0x40000 into the display TX word (same handshake as donor patched HEX). Clearing that bit at standstill keeps the VD04 in legal PAS-1 / 25 km/h so it never sends 60. Site 0x10008826 (protect-bit test) stays stock. Site 0x10008890 remaps a live display 60 to 99 in RebuildWheelSpeedFadeThresholds. Does not disable fade; it moves the taper point. Disable speed fade, when also on, overwrites this remap with an in-function 60-gate (same 8 bytes; apply order is this parameter then disable). The handshake site still applies. Short b is scatter/RAM-safe.",
+      "summary": "Force display TX bit 0x40000 always on so the VD04 handshake is not stuck in legal 25/PAS 1, and remap fade math from 60 to 99 when the display sends 60. Motor taper is the 60\u219299 remap unless Disable speed fade is also on (that skips Apply taper in both display modes).",
+      "notes": "Site 0x10008824 is bcc\u2192b so UpdateDisplayWheelPeriodStatusBit always ORs 0x40000 into the display TX word (same handshake as donor patched HEX). Clearing that bit at standstill keeps the VD04 in legal PAS-1 / 25 km/h so it never sends 60. Site 0x10008826 (protect-bit test) stays stock. Site 0x10008890 remaps a live display 60 to 99 in RebuildWheelSpeedFadeThresholds. Does not disable fade; it moves the taper point. Disable speed fade patches ApplyWheelSpeedFade separately and does not overwrite this remap. Short b is scatter/RAM-safe.",
       "sites": [
         {
           "address": "0x10008824",
@@ -1534,48 +1534,41 @@
       "audience": "rider",
       "group": "speed",
       "unit": "",
-      "address": "0x10008890",
-      "size": 8,
+      "address": "0x100088F6",
+      "size": 2,
       "encoding": "checkbox_sites",
       "control": "checkbox",
       "originalBytes": [
-        "0x84",
-        "0x42",
-        "0x01",
-        "0xD1",
-        "0x8D",
-        "0x42",
-        "0x12",
-        "0xD0"
+        "0x02",
+        "0xD2"
       ],
       "min": 0,
       "max": 1,
       "step": 1,
       "defaultValue": 0,
       "confidence": "high",
-      "summary": "Skip the near-cap assist taper only when the display max is 60 (off-road). On-road 25 km/h still uses stock fade. PAS percent, ride-current clamp, thermal, battery, and protect limits still apply.",
-      "notes": "RebuildWheelSpeedFadeThresholds is scatter-copied to SRAM 0x2000146A, so a far BL out of that window is invalid. This 8-byte in-function gate at 0x10008890 is cmp r5,#60; bne stock math; movs r0,#0; b 0x100088A6 (ldr r7 / strh 0 into +0x30, then *25/22 of 0 into +0x32, then cache). Short PC-relative branches stay valid after the RAM copy. Does not patch ApplyWheelSpeedFade. Shares 0x10008890 with Unlimit-when-display-60; when both are on this gate overwrites the 60\u219299 remap. Unlimit's handshake bcc\u2192b at 0x10008824 still applies. Not literally full motor power \u2014 other limiters remain.",
+      "summary": "Skip the near-cap assist taper in ApplyWheelSpeedFade on both display 25 and 60. PAS percent, ride-current clamp, thermal, battery, and protect limits still apply.",
+      "notes": "ApplyWheelSpeedFade is scatter-copied with the rest of the ride window to SRAM, so these short b encodings stay valid after the RAM copy. Site 0x100088F6 is bcs\u2192b to 0x10008916 (always store full assist span; stock bcs 0x100088fe is 02 D2). Site 0x10008922 is bcs\u2192b to 0x1000893e (always keep source current; stock bcs 0x1000892c is 03 D2). Same two sites as donor patched HEX. Does not patch RebuildWheelSpeedFadeThresholds; Unlimit-when-display-60 still owns the handshake and 60\u219299 remap. 0x10008904 stays stock. Not literally full motor power \u2014 other limiters remain. On-road 25 and off-road 60 both skip motor fade.",
       "sites": [
         {
-          "address": "0x10008890",
+          "address": "0x100088F6",
           "originalBytes": [
-            "0x84",
-            "0x42",
-            "0x01",
-            "0xD1",
-            "0x8D",
-            "0x42",
-            "0x12",
-            "0xD0"
+            "0x02",
+            "0xD2"
           ],
           "patchedBytes": [
-            "0x3C",
-            "0x2D",
-            "0x01",
-            "0xD1",
-            "0x00",
-            "0x20",
-            "0x06",
+            "0x0E",
+            "0xE0"
+          ]
+        },
+        {
+          "address": "0x10008922",
+          "originalBytes": [
+            "0x03",
+            "0xD2"
+          ],
+          "patchedBytes": [
+            "0x0C",
             "0xE0"
           ]
         }

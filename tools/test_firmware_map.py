@@ -437,8 +437,8 @@ class FirmwareOverlayTests(unittest.TestCase):
     def test_covers_every_parameter_and_preserve_byte(self) -> None:
         overlay = overlay_ranges()
         overlap_pairs = {(o["first"], o["second"]) for o in overlay["overlaps"]}
-        self.assertEqual(overlap_pairs, {("unlimit_speed_display_60", "disable_speed_fade")})
-        self.assertEqual(len(overlay["overlaps"]), 8)
+        self.assertEqual(overlap_pairs, set())
+        self.assertEqual(len(overlay["overlaps"]), 0)
         expected: set[int] = set()
         for spec in PARAMETER_MAP["parameters"]:
             for site in parameter_sites(spec):
@@ -561,24 +561,31 @@ class PatcherVsStockTests(unittest.TestCase):
         self.assertEqual(list(patched[0x10003A18 - FLASH_BASE : 0x10003A18 - FLASH_BASE + 4]), [0x00, 0x00, 0xF0, 0x41])
         self.assertEqual(patched[0x100031E4 - FLASH_BASE], 255)
         self.assertEqual(list(patched[0x100031D6 - FLASH_BASE : 0x100031D6 - FLASH_BASE + 2]), [0x49, 0x01])
-        self.assertEqual(list(patched[0x10008890 - FLASH_BASE : 0x10008890 - FLASH_BASE + 8]), [0x3C, 0x2D, 0x01, 0xD1, 0x00, 0x20, 0x06, 0xE0])
+        self.assertEqual(
+            list(patched[0x10008890 - FLASH_BASE : 0x10008890 - FLASH_BASE + 8]),
+            [0x3C, 0x2D, 0x01, 0xD1, 0x63, 0x25, 0x00, 0xBF],
+        )
         self.assertEqual(list(patched[0x10008898 - FLASH_BASE : 0x10008898 - FLASH_BASE + 4]), [0x3E, 0x49, 0x20, 0x46])
-        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x02, 0xD2])
+        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x0E, 0xE0])
+        self.assertEqual(list(patched[0x10008922 - FLASH_BASE : 0x10008922 - FLASH_BASE + 2]), [0x0C, 0xE0])
         self.assertEqual(list(patched[0x1000FF00 - FLASH_BASE : 0x1000FF00 - FLASH_BASE + 4]), [0xFF, 0xFF, 0xFF, 0xFF])
 
-    def test_disables_speed_fade_via_in_function_gate(self) -> None:
+    def test_disables_speed_fade_via_apply_bcs_to_b(self) -> None:
         patched = apply_patches(self.stock(), {**default_values(), "disable_speed_fade": 1})
-        self.assertEqual(list(patched[0x10008890 - FLASH_BASE : 0x10008890 - FLASH_BASE + 8]), [0x3C, 0x2D, 0x01, 0xD1, 0x00, 0x20, 0x06, 0xE0])
+        self.assertEqual(
+            list(patched[0x10008890 - FLASH_BASE : 0x10008890 - FLASH_BASE + 8]),
+            [0x84, 0x42, 0x01, 0xD1, 0x8D, 0x42, 0x12, 0xD0],
+        )
         self.assertEqual(list(patched[0x10008898 - FLASH_BASE : 0x10008898 - FLASH_BASE + 4]), [0x3E, 0x49, 0x20, 0x46])
-        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x02, 0xD2])
+        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x0E, 0xE0])
         self.assertEqual(list(patched[0x10008904 - FLASH_BASE : 0x10008904 - FLASH_BASE + 2]), [0x07, 0xD2])
-        self.assertEqual(list(patched[0x10008922 - FLASH_BASE : 0x10008922 - FLASH_BASE + 2]), [0x03, 0xD2])
+        self.assertEqual(list(patched[0x10008922 - FLASH_BASE : 0x10008922 - FLASH_BASE + 2]), [0x0C, 0xE0])
         self.assertEqual(patched[0x100088F0 - FLASH_BASE], 0x4B)
         self.assertEqual(list(patched[0x100088EA - FLASH_BASE : 0x100088EA - FLASH_BASE + 2]), [0x2D, 0x78])
         self.assertEqual(list(patched[0x1000FF00 - FLASH_BASE : 0x1000FF00 - FLASH_BASE + 4]), [0xFF, 0xFF, 0xFF, 0xFF])
         self.assertEqual(list(patched[0x10008824 - FLASH_BASE : 0x10008824 - FLASH_BASE + 2]), [0x03, 0xD3])
 
-    def test_disable_speed_fade_overwrites_unlimit_remap_keeps_handshake(self) -> None:
+    def test_disable_speed_fade_and_unlimit_apply_independently(self) -> None:
         patched = apply_patches(
             self.stock(),
             {**default_values(), "unlimit_speed_display_60": 1, "disable_speed_fade": 1},
@@ -590,14 +597,15 @@ class PatcherVsStockTests(unittest.TestCase):
         )
         self.assertEqual(
             list(patched[0x10008890 - FLASH_BASE : 0x10008890 - FLASH_BASE + 8]),
-            [0x3C, 0x2D, 0x01, 0xD1, 0x00, 0x20, 0x06, 0xE0],
+            [0x3C, 0x2D, 0x01, 0xD1, 0x63, 0x25, 0x00, 0xBF],
         )
         self.assertEqual(list(patched[0x10008898 - FLASH_BASE : 0x10008898 - FLASH_BASE + 4]), [0x3E, 0x49, 0x20, 0x46])
-        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x02, 0xD2])
+        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x0E, 0xE0])
+        self.assertEqual(list(patched[0x10008922 - FLASH_BASE : 0x10008922 - FLASH_BASE + 2]), [0x0C, 0xE0])
         overlay = overlay_ranges(bytes(patched))
         fade_hits = [h for h in overlay["hits"] if h["address"] == 0x10008890]
         self.assertTrue(fade_hits)
-        self.assertEqual(fade_hits[0]["id"], "disable_speed_fade")
+        self.assertEqual(fade_hits[0]["id"], "unlimit_speed_display_60")
         self.assertEqual(fade_hits[0]["status"], "patched")
 
     def test_thermal_high_band_writes_both_imm8_sites(self) -> None:
