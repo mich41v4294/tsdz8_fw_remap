@@ -289,7 +289,10 @@ class ParameterMapTests(unittest.TestCase):
         ids = {p["id"] for p in PARAMETER_MAP["parameters"]}
         presets = PARAMETER_MAP.get("presets") or []
         self.assertGreaterEqual(len(presets), 2)
-        self.assertEqual({p["id"] for p in presets}, {"offroad_unlimit", "stock"})
+        self.assertEqual(
+            {p["id"] for p in presets},
+            {"onroad_25_offroad_unlimit", "offroad_unlimit", "stock"},
+        )
         for preset in presets:
             self.assertTrue(set(preset.get("values") or {}).issubset(ids), preset["id"])
 
@@ -318,6 +321,24 @@ class ParameterMapTests(unittest.TestCase):
         )
         raised = apply_preset("offroad_unlimit", {**default_values(), "speed_ceiling_kmh": 60})
         self.assertEqual(raised["speed_ceiling_kmh"], 25)
+
+    def test_onroad_25_offroad_unlimit_preset_keeps_fade(self) -> None:
+        values = apply_preset("onroad_25_offroad_unlimit", {**default_values(), "pas1_percent": 40})
+        self.assertEqual(values["pas1_percent"], 40)
+        self.assertEqual(values["speed_ceiling_kmh"], 25)
+        self.assertEqual(values["unlimit_speed_display_60"], 1)
+        self.assertEqual(values["disable_speed_fade"], 0)
+        self.assertEqual(values["ride_current_clamp"], 32767)
+        self.assertEqual(values["pack_max_current_a"], 30)
+        self.assertEqual(values["skip_throttle_lockout_bit"], 0)
+        self.assertEqual(
+            {d["id"] for d in build_diff(apply_preset("onroad_25_offroad_unlimit", default_values()))},
+            {
+                "unlimit_speed_display_60",
+                "ride_current_clamp",
+                "pack_max_current_a",
+            },
+        )
 
     def test_skip_throttle_lockout_has_ride_and_foc_sites(self) -> None:
         spec = next(p for p in PARAMETER_MAP["parameters"] if p["id"] == "skip_throttle_lockout_bit")
@@ -587,6 +608,19 @@ class PatcherVsStockTests(unittest.TestCase):
         self.assertEqual(list(patched[0x100089B8 - FLASH_BASE : 0x100089B8 - FLASH_BASE + 4]), [0x27, 0xFB, 0xFF, 0xFF])
         self.assertEqual(patched[0x10007D34 - FLASH_BASE], 0x9B)
         self.assertEqual(list(patched[0x1000FF00 - FLASH_BASE : 0x1000FF00 - FLASH_BASE + 4]), [0xFF, 0xFF, 0xFF, 0xFF])
+
+    def test_onroad_25_offroad_unlimit_preset_leaves_fade_stock(self) -> None:
+        patched = apply_patches(self.stock(), apply_preset("onroad_25_offroad_unlimit", default_values()))
+        self.assertEqual(patched[0x1000881A - FLASH_BASE], 0x19)
+        self.assertEqual(list(patched[0x10008824 - FLASH_BASE : 0x10008824 - FLASH_BASE + 2]), [0x03, 0xE0])
+        self.assertEqual(
+            list(patched[0x10008890 - FLASH_BASE : 0x10008890 - FLASH_BASE + 8]),
+            [0x3C, 0x2D, 0x01, 0xD1, 0x63, 0x25, 0x00, 0xBF],
+        )
+        self.assertEqual(list(patched[0x100088F6 - FLASH_BASE : 0x100088F6 - FLASH_BASE + 2]), [0x02, 0xD2])
+        self.assertEqual(list(patched[0x10008904 - FLASH_BASE : 0x10008904 - FLASH_BASE + 2]), [0x07, 0xD2])
+        self.assertEqual(list(patched[0x10008922 - FLASH_BASE : 0x10008922 - FLASH_BASE + 2]), [0x03, 0xD2])
+        self.assertEqual(list(patched[0x10003A18 - FLASH_BASE : 0x10003A18 - FLASH_BASE + 4]), [0x00, 0x00, 0xF0, 0x41])
 
     def test_disables_speed_fade_via_apply_bcs_to_b(self) -> None:
         patched = apply_patches(self.stock(), {**default_values(), "disable_speed_fade": 1})
